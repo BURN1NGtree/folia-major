@@ -100,7 +100,11 @@ export type LibraryHomeRadioFeed = {
     dailyCount: number;
     /** 未声明时沿用旧 feed 的支持语义；默认环境装配会明确提供实际 provider 能力。 */
     supportsDailySongs?: boolean;
+    /** 这个源有没有真的私人 FM。false 时电台页签不出 FM 卡（Apple 的个性化电台是 station，不是 FM）。 */
+    supportsPersonalFm?: boolean;
     recommended: ProviderCollection[];
+    /** 电台（动态流）：Apple 的『XX 的电台』『探索电台』这类，点它=在对方那边开电台，不打开歌单。 */
+    stations?: ProviderCollection[];
     /** 有一块没读到（按空显示）：资源不记成读过，下次进电台页再读。 */
     partial?: true;
 };
@@ -201,6 +205,8 @@ export interface LibraryHomePort {
     subscribeScanProgress(listener: (progress: LibraryHomeScanProgress | null) => void): () => void;
     getPersonalFm(): Promise<SongResult[]>;
     playPersonalFm(song: SongResult, queue: SongResult[]): void;
+    /** 在外部播放器里开一条电台（Apple）。 */
+    playStation?(stationId: string): Promise<unknown> | unknown;
     describeOnlineCollection(collection: Record<string, unknown>, providerId: string): LibraryCollectionDescriptor;
     describeLocalGroup(group: LocalLibraryGroup): LibraryCollectionDescriptor;
     describeNavidromeCard(card: LibraryHomeCard, type: NavidromeGridViewCollectionType): LibraryCollectionDescriptor;

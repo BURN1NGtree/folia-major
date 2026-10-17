@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, webContents: electronWebContents, Menu, Tray, nativeTheme, powerSaveBlocker, safeStorage, protocol, crashReporter, net: electronNet } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, webContents: electronWebContents, Menu, Tray, nativeTheme, powerSaveBlocker, safeStorage, protocol, crashReporter, net: electronNet, desktopCapturer } = require('electron');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -27,6 +27,9 @@ const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createBodianApiBridge } = require('./bodianApiBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
+const { createAppleMusicBridge } = require('./appleMusicBridge.cjs');
+const { createAppleMusicBrowser } = require('./appleMusicBrowser.cjs');
+const { createNowPlayingSupervisor } = require('./nowplaying/supervisor.cjs');
 const { createQqAuthSessionRepository } = require('./qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
@@ -199,6 +202,15 @@ const transcodeService = createTranscodeService({
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
 const bodianMediaPolicy = createBodianMediaPolicy();
+// Apple Music 桥是只读的：它连的是**用户自己**已登录的浏览器（CDP），
+// 不持有任何 Apple 凭据、不改账号状态，也不碰 DRM 音频。
+const appleMusicBridge = createAppleMusicBridge({});
+const appleMusicBrowser = createAppleMusicBrowser({});
+// 内置 now-playing 服务（9863）。默认不起，等到主窗口真的来要 Apple 数据时才拉起——
+// 只听本地/其他音源的用户不会多挂一个后台进程。崩溃重启与端口占用都由监管者处理。
+const nowPlayingSupervisor = createNowPlayingSupervisor({
+  log: (...args) => console.log(...args),
+});
 const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
   onAudioSource: url => bodianMediaPolicy.register(url),
   requestFactory: (options, onResponse) => {
@@ -1797,6 +1809,11 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
+// Armed by the renderer immediately before it requests the system-audio loopback stream that
+// feeds the visualizer while playback lives in another application (Apple Music). Single-use:
+// the grant is consumed by the next granted request, so a stray getDisplayMedia call cannot
+// silently record the machine's output.
+let systemAudioLoopbackArmed = false;
 // Chromium's fragmented MP4 leaves the movie duration at the first fragment (#549); patch it
 // from the fragment timeline once recording ends.
 const videoExportFileWriter = createVideoExportFileWriter({ finalizeFile: finalizeVideoExportFile });
@@ -4702,8 +4719,28 @@ function fitMainWindowBoundsToExportSize(exportSize) {
 // are exactly the content area. Requests are granted only to the main window while an export
 // has prepared the window, so nothing else can silently capture the player.
 function setupVideoExportDisplayMediaHandler() {
-  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
     const requester = request.frame ? electronWebContents.fromFrame(request.frame) : null;
+
+    // System-audio loopback: lets the visualizer follow what the machine is actually playing,
+    // which is how an external player (Apple Music) can own the sound while Folia still renders
+    // a live spectrum. The captured signal is only ever routed into an analyser — never back to
+    // an output device — so a loopback stream cannot echo.
+    if (systemAudioLoopbackArmed && isTrustedMainWindowContents(requester)) {
+      systemAudioLoopbackArmed = false;
+      try {
+        const sources = await desktopCapturer.getSources({ types: ['screen'] });
+        if (sources.length > 0) {
+          callback({ video: sources[0], audio: 'loopback' });
+          return;
+        }
+      } catch (error) {
+        console.error('[SystemAudio] loopback capture failed:', error);
+      }
+      callback({});
+      return;
+    }
+
     if (!videoExportWindowRestoreState || !isTrustedMainWindowContents(requester)) {
       callback({});
       return;
@@ -5299,6 +5336,12 @@ app.on('before-quit', () => {
   transcodeService.dispose();
   videoExportFileWriter.disposeSync();
   isAppQuitting = true;
+  // 内置 now-playing 服务随应用退出结束；不这样做会留下一个占着 9863 的孤儿进程，
+  // 下次启动时监管者会把它误判成「外部服务」而不再拉起自己的实例。
+  nowPlayingSupervisor.stop();
+  // 同理，收掉本会话拉起的 Apple 浏览器：留着的浏览器会占住专用 profile 锁，
+  // 下次启动的新实例会被挤掉（表现为「Folia 起来了但 Apple 一直未就绪」）。
+  appleMusicBrowser.dispose();
   clearPendingWindowPlaybackHandoffRequests();
   if (modSystem) {
     try {
@@ -5881,6 +5924,49 @@ ipcMain.handle('bodian-api-request', (event, operation, params) => {
   }
   return bodianApiBridge.request(operation, params);
 });
+// 与 Bodian 同样只信主窗口。桥本身另有操作白名单，这里收窄的是调用面：
+// 隐藏标签页照样能出声，但只有第一方主窗口能驱动 Apple Music 曲库。
+ipcMain.handle('apple-music-request', async (event, operation, params) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return { ok: false, error: { code: 'unavailable', message: 'Untrusted Apple Music request' } };
+  }
+  // 主窗口开始要 Apple 数据 = 用户确实在用这个音源，此时才把内置 9863 服务带起来。
+  // 不 await：首帧数据不等舞台服务，服务晚一两百毫秒起来不影响播放。
+  void nowPlayingSupervisor.ensureStarted(`apple-music-request:${operation || 'unknown'}`);
+  const first = await appleMusicBridge.request(operation, params);
+  if (first?.ok !== false) return first;
+  // 用户把浏览器关了：拉一个后台实例再试一次。它仍是真实窗口（否则会静音、播放不推进），
+  // 只是拉起后立刻收进任务栏，不占屏幕也不抢焦点；要登录时由 apple-music-browser-ensure
+  // 恢复成正常窗口。
+  const code = first?.error?.code;
+  if (code !== 'unavailable' && code !== 'auth-required') return first;
+  const ensured = await appleMusicBrowser.ensureForData().catch(() => ({ ok: false }));
+  if (!ensured?.ok) return first;
+  return appleMusicBridge.request(operation, params);
+});
+
+// Apple Music 专用浏览器的生命周期。与桥一样只信主窗口；四个动作都不碰账号数据：
+// ensure/focus/hide 只动窗口，clear-session 只清 music.apple.com 系源的存储。
+const guardedAppleBrowserHandler = (channel, run) => ipcMain.handle(channel, async (event, payload) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return { ok: false, reason: 'untrusted' };
+  }
+  try {
+    return await run(payload);
+  } catch (error) {
+    return { ok: false, reason: 'bridge-error', detail: error.message };
+  }
+});
+
+guardedAppleBrowserHandler('apple-music-browser-status', () => appleMusicBrowser.status());
+guardedAppleBrowserHandler('apple-music-browser-probe', () => appleMusicBrowser.probe().then(ready => ({ ok: true, ready })));
+guardedAppleBrowserHandler('apple-music-browser-ensure', payload => {
+  // 打开专用浏览器（登录/切账号都走这里）同样是「正在用 Apple」的信号。
+  void nowPlayingSupervisor.ensureStarted('apple-music-browser-ensure');
+  return appleMusicBrowser.ensure({ visible: payload?.visible !== false });
+});
+guardedAppleBrowserHandler('apple-music-browser-hide', () => appleMusicBrowser.hide());
+guardedAppleBrowserHandler('apple-music-browser-clear-session', () => appleMusicBrowser.clearSession());
 
 ipcMain.handle('window-minimize', () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -6420,6 +6506,27 @@ ipcMain.handle('video-export-choose-path', async (event, defaultName, extension,
     canceled: result.canceled || !result.filePath,
     filePath: result.filePath || null,
   };
+});
+
+// Single-use grant for the system-audio loopback stream used by the visualizer. The renderer
+// arms it right before calling getDisplayMedia and the display-media handler consumes it. Only
+// the main window may arm, and only while it is the trusted player window.
+ipcMain.handle('system-audio-loopback-arm', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to arm system audio capture.');
+  }
+
+  systemAudioLoopbackArmed = true;
+  return true;
+});
+
+ipcMain.handle('system-audio-loopback-disarm', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  systemAudioLoopbackArmed = false;
+  return true;
 });
 
 ipcMain.handle('video-export-prepare-window', (event, size) => {

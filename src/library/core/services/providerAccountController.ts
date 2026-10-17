@@ -482,6 +482,11 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         const selection = resolveProviderSelection(findProvider(providerId));
         if (selection.kind === 'unavailable') return { action: 'unavailable', providerId, reason: selection.reason };
         if (selection.kind === 'switch') return { action: 'switch', result: await openSwitchRequest(providerId, 'switch') };
+        if (selection.kind === 'apple-login') {
+            // Apple 没有扫码流程：交给宿主打开专用浏览器窗口，不建注定失败的扫码会话。
+            deps.onAppleLoginRequired?.(providerId);
+            return { action: 'apple-login', providerId };
+        }
         return { action: 'login', result: await startLogin(providerId) };
     };
 
@@ -493,6 +498,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         batch(() => { logout = { providerId, status: 'pending' }; });
         try {
             await providerAccounts.logout(providerId);
+            deps.onLoggedOut?.(providerId);
             return { status: 'logged-out', providerId };
         } catch (error) {
             log('warn', 'logout:error', { providerId, ...describeLoginError(error) });

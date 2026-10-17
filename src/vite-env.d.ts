@@ -897,6 +897,11 @@ declare global {
         operation: import('./services/onlineMusic/bodianTransport').BodianOperation,
         params?: import('./services/onlineMusic/bodianTransport').BodianParams,
       ) => Promise<import('./services/onlineMusic/bodianTransport').BodianBridgeResult>;
+      /** Apple Music 只读桥（electron/appleMusicBridge.cjs），走本机 CDP；不需要凭据存储。 */
+      appleMusicRequest: (
+        operation: import('./services/onlineMusic/appleTransport').AppleOperation,
+        params?: import('./services/onlineMusic/appleTransport').AppleParams,
+      ) => Promise<import('./services/onlineMusic/appleTransport').AppleBridgeResult>;
       kugouRequest: (
         operation: ElectronKugouOperation,
         params?: Record<string, string | number | boolean | undefined>,
@@ -970,6 +975,11 @@ declare global {
         displayName?: string,
       ) => Promise<ElectronSaveDialogResult>;
       reportDevicePixelRatio: (ratio: number) => Promise<void>;
+      // Single-use grant that lets the next getDisplayMedia call capture the machine's audio
+      // output (loopback) so the visualizer can follow an external player. Only the main window
+      // may arm it, and the grant is consumed by the next granted request.
+      armSystemAudioLoopback: () => Promise<boolean>;
+      disarmSystemAudioLoopback: () => Promise<boolean>;
       // Returns `false` when the resize could not be prepared, otherwise the resolved DPR.
       prepareVideoExportWindow: (size: { width: number; height: number; dpr?: number }) => Promise<false | { success: boolean; dpr: number }>;
       restoreVideoExportWindow: () => Promise<boolean>;

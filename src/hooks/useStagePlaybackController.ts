@@ -4,6 +4,7 @@ import type { MotionValue } from 'framer-motion';
 import { LyricParserFactory } from '../utils/lyrics/LyricParserFactory';
 import { getFromCache, removeFromCache, saveToCache } from '../services/db';
 import { NowPlayingProvider } from '../services/nowPlayingProvider';
+import { resolveAppleCatalogId } from '../services/onlineMusic/externalPlaybackTarget';
 import { usePlayerCapSource } from './usePlayerCapSource';
 import { findLatestActiveLineIndex, hasRenderableLyrics } from '../utils/appPlaybackHelpers';
 import { buildStageEntryKey, getStageLyricsTimelineBounds } from '../utils/appStageHelpers';
@@ -22,6 +23,7 @@ import {
     LyricData,
     NowPlayingConnectionStatus,
     NowPlayingLyricPayload,
+    NowPlayingQueueSnapshot,
     NowPlayingTrackSnapshot,
     PlayerState,
     SongResult,
@@ -122,6 +124,8 @@ export function useStagePlaybackController({
     const [nowPlayingConnectionStatus, setNowPlayingConnectionStatus] = useState<NowPlayingConnectionStatus>('disabled');
     const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrackSnapshot | null>(null);
     const [nowPlayingLyricPayload, setNowPlayingLyricPayload] = useState<NowPlayingLyricPayload | null>(null);
+    // 外部播放器的待播清单快照：队列归外部所有，这份只用来渲染与跳行。
+    const [nowPlayingQueue, setNowPlayingQueue] = useState<NowPlayingQueueSnapshot | null>(null);
     const [nowPlayingProgressMs, setNowPlayingProgressMs] = useState(0);
     const [nowPlayingProgressQuality, setNowPlayingProgressQuality] = useState<'precise' | 'coarse'>('coarse');
     const [nowPlayingPaused, setNowPlayingPaused] = useState(true);
@@ -180,7 +184,11 @@ export function useStagePlaybackController({
         ? (stageStatus?.modeEnabled ? (stageStatus?.source ?? 'stage-api') : null)
         : (enablePlayerCapStage ? 'playercap' : (enableNowPlayingStage ? 'now-playing' : null));
     const isNowPlayingStageActive = activePlaybackContext === 'stage' && stageSource === 'now-playing';
-    const shouldPublishNowPlayingState = isDev || isNowPlayingStageActive;
+    // 不在舞台上，但当前曲目是交给外部播放器的那种（Apple 曲目）：用户点歌单里的「播放」后，
+    // 声音由外部播放器发出，界面（底栏/播放页）跟着这里的 now-playing 数据走，看起来跟在 Folia
+    // 里播一样。它只影响「订阅与发布 now-playing 状态」，不参与舞台那套回灌。
+    const externalMirrorActive = !isNowPlayingStageActive && Boolean(resolveAppleCatalogId(currentSong as never));
+    const shouldPublishNowPlayingState = isDev || isNowPlayingStageActive || externalMirrorActive;
     shouldPublishNowPlayingStateRef.current = shouldPublishNowPlayingState;
 
     // === PlayerCap stage source (third source): reuses usePlayerCapSource, passively mirrored to the main playback pane; the OBS SSE source inherits it automatically, source-agnostic ===
@@ -1040,7 +1048,7 @@ export function useStagePlaybackController({
     }, []);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing') {
+        if (stageSource !== 'now-playing' && !externalMirrorActive) {
             nowPlayingProviderRef.current?.stop();
             nowPlayingProviderRef.current = null;
             nowPlayingContentLoadKeyRef.current = null;
@@ -1052,6 +1060,7 @@ export function useStagePlaybackController({
             setNowPlayingConnectionStatus('disabled');
             setNowPlayingTrack(null);
             setNowPlayingLyricPayload(null);
+            setNowPlayingQueue(null);
             setNowPlayingProgressMs(0);
             setNowPlayingProgressQuality('coarse');
             setNowPlayingPaused(true);
@@ -1076,6 +1085,11 @@ export function useStagePlaybackController({
                 nowPlayingTrackRef.current = track;
                 if (shouldPublishNowPlayingStateRef.current) {
                     setNowPlayingTrack(track);
+                }
+            },
+            onQueue: (queue) => {
+                if (shouldPublishNowPlayingStateRef.current) {
+                    setNowPlayingQueue(queue);
                 }
             },
             onLyric: (lyric) => {
@@ -1117,10 +1131,10 @@ export function useStagePlaybackController({
                 nowPlayingProviderRef.current = null;
             }
         };
-    }, [isDev, resetNowPlayingClock, stageSource, updateNowPlayingDebugInfo]);
+    }, [externalMirrorActive, isDev, resetNowPlayingClock, stageSource, updateNowPlayingDebugInfo]);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing' || !shouldPublishNowPlayingState) {
+        if (stageSource !== 'now-playing' && !externalMirrorActive) {
             return;
         }
 
@@ -1132,7 +1146,7 @@ export function useStagePlaybackController({
             setNowPlayingProgressMs(nowPlayingProgressMsRef.current);
             setNowPlayingProgressQuality(nowPlayingProgressQualityRef.current);
         }
-    }, [isDev, shouldPublishNowPlayingState, stageSource]);
+    }, [externalMirrorActive, isDev, shouldPublishNowPlayingState, stageSource]);
 
     useEffect(() => {
         if (activePlaybackContext === 'main') {
@@ -1397,6 +1411,7 @@ export function useStagePlaybackController({
         nowPlayingConnectionStatus,
         nowPlayingTrack,
         nowPlayingLyricPayload,
+        nowPlayingQueue,
         nowPlayingProgressMs,
         nowPlayingProgressQuality,
         nowPlayingPaused,

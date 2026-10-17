@@ -22,6 +22,8 @@ export interface TrackTitleNavigatorProps {
     color: string;
     isDaylight?: boolean;
     disabled?: boolean;
+    /** 外部播放器接管时强制常显箭头，不受「悬浮才出现」的设置约束 */
+    forceShowArrows?: boolean;
 }
 
 /**
@@ -46,6 +48,7 @@ const TrackTitleNavigator: React.FC<TrackTitleNavigatorProps> = ({
     color,
     isDaylight = false,
     disabled = false,
+    forceShowArrows = false,
 }) => {
     const {
         displayTitle,
@@ -57,7 +60,8 @@ const TrackTitleNavigator: React.FC<TrackTitleNavigatorProps> = ({
         leaveZone,
         beginSwitch,
     } = useTrackTitlePreview({ title, trackKey, prevTitle, nextTitle, disabled });
-    const alwaysShowArrows = usePlayerChromeSettingsStore(state => state.alwaysShowTrackSwitchButtons);
+    const alwaysShowArrows = usePlayerChromeSettingsStore(state => state.alwaysShowTrackSwitchButtons)
+        || forceShowArrows;
 
     const isPreview = previewTitle !== null;
     const zoneClass = 'absolute inset-y-0 flex items-center';

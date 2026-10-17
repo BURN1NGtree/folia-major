@@ -42,6 +42,11 @@ export const resolvePlayerEscapeAction = ({
 type UsePlaybackInteractionBridgeParams = {
     stageActiveEntryKind: string | null;
     isNowPlayingStageActive: boolean;
+    /**
+     * 外部播放器（now-playing 舞台）接管时的传输出口：此时本地没有传输可言，
+     * 同一个按键/点击意图必须转给外部源，否则这些按键会静默地什么都不做。
+     */
+    onExternalTransportCommand?: (command: 'play' | 'pause' | 'toggle' | 'next' | 'previous') => void;
     audioRef: React.RefObject<HTMLAudioElement | null>;
     /**
      * Whether an automix blend is sounding, which settles play-vs-pause on its own.
@@ -82,6 +87,7 @@ type UsePlaybackInteractionBridgeParams = {
 export function usePlaybackInteractionBridge({
     stageActiveEntryKind,
     isNowPlayingStageActive,
+    onExternalTransportCommand,
     audioRef,
     isTransitionAudible,
     seekDuringTransition,
@@ -135,6 +141,7 @@ export function usePlaybackInteractionBridge({
         event?.stopPropagation();
 
         if (isNowPlayingStageActive) {
+            onExternalTransportCommand?.('toggle');
             return;
         }
 
@@ -166,7 +173,7 @@ export function usePlaybackInteractionBridge({
                 startPlaybackFromInteraction();
             }
         }
-    }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, isTransitionAudible, pausePlayback, playerState, startPlaybackFromInteraction, stageActiveEntryKind]);
+    }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, isTransitionAudible, onExternalTransportCommand, pausePlayback, playerState, startPlaybackFromInteraction, stageActiveEntryKind]);
 
     const toggleLoop = useCallback((event?: React.MouseEvent) => {
         event?.stopPropagation();
@@ -255,9 +262,6 @@ export function usePlaybackInteractionBridge({
                 case 'Space':
                     if (currentSong && (audioSrc || isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
                         event.preventDefault();
-                        if (isNowPlayingStageActive) {
-                            return;
-                        }
                         togglePlay(event);
                     }
                     break;
@@ -270,6 +274,7 @@ export function usePlaybackInteractionBridge({
                         if (currentSong) {
                             event.preventDefault();
                             if (isNowPlayingStageActive) {
+                                onExternalTransportCommand?.('previous');
                                 return;
                             }
                             handlePrevTrack();
@@ -305,6 +310,7 @@ export function usePlaybackInteractionBridge({
                         if (currentSong) {
                             event.preventDefault();
                             if (isNowPlayingStageActive) {
+                                onExternalTransportCommand?.('next');
                                 return;
                             }
                             void handleNextTrack();
@@ -362,6 +368,7 @@ export function usePlaybackInteractionBridge({
         isNowPlayingStageActive,
         isPanelOpen,
         navigateBackFromPlayer,
+        onExternalTransportCommand,
         pausePlayback,
         playerState,
         resumePlayback,

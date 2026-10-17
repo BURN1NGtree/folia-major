@@ -24,6 +24,8 @@ export interface TrackNavigation {
     onNext: () => void;
     canPrev: boolean;
     canNext: boolean;
+    /** 外部播放时把左右箭头常显：队列的主人是对方，箭头是唯一的「上一首/下一首」入口 */
+    alwaysShowArrows?: boolean;
     prevTitle: string | null;
     nextTitle: string | null;
     prevLabel: string;
@@ -516,6 +518,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                         nextTitle={trackNavigation.nextTitle}
                         canPrev={trackNavigation.canPrev}
                         canNext={trackNavigation.canNext}
+                        forceShowArrows={trackNavigation.alwaysShowArrows}
                         onPrev={trackNavigation.onPrev}
                         onNext={trackNavigation.onNext}
                         prevLabel={trackNavigation.prevLabel}

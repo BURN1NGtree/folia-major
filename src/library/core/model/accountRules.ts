@@ -23,16 +23,22 @@ import { canSwitchToProviderDirectly } from './onlineProviderAccountView';
 export type LibraryProviderSelection =
     | { kind: 'unavailable'; reason: LibraryProviderUnavailableReason }
     | { kind: 'switch' }
-    | { kind: 'login' };
+    | { kind: 'login' }
+    | { kind: 'apple-login' };
+
+/** Apple Music 没有扫码流程（`getQrLoginMethods` 未实现），登录走专用浏览器窗口。 */
+const APPLE_PROVIDER_ID = 'apple';
 
 /**
  * 选一个平台时走哪一支：不在列表里 / 未配置 → unavailable；能直接切（已登录，或 mod 源这类无账户的）→ switch；
- * 否则 → login（未登录、登录失效、账户还在解析都要扫码）。
+ * Apple 未登录 → apple-login（打开专用浏览器让用户自己登录，不建扫码会话）；
+ * 其余未登录 / 登录失效 / 账户还在解析 → login（扫码）。
  */
 export const resolveProviderSelection = (provider: ProviderAccountSummary | undefined): LibraryProviderSelection => {
     if (!provider) return { kind: 'unavailable', reason: 'unknown-provider' };
     if (!provider.availability.configured) return { kind: 'unavailable', reason: 'not-configured' };
     if (canSwitchToProviderDirectly(provider)) return { kind: 'switch' };
+    if (provider.providerId === APPLE_PROVIDER_ID) return { kind: 'apple-login' };
     return { kind: 'login' };
 };
 
@@ -96,6 +102,7 @@ const LOGIN_COPY_BY_PROVIDER: Readonly<Record<string, { title: string; note: str
     kugou: { title: 'home.loginTitleKugou', note: 'home.loginNoteKugou' },
     qq: { title: 'home.loginTitleQq', note: 'home.loginNoteQq' },
     bodian: { title: 'home.loginTitleBodian', note: 'home.loginNoteBodian' },
+    apple: { title: 'home.loginTitleApple', note: 'home.loginNoteApple' },
 };
 const NETEASE_LOGIN_COPY = { title: 'home.loginTitle', note: 'home.loginNote' };
 

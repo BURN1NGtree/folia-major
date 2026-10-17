@@ -64,9 +64,16 @@ import { createQueueMutations } from './components/app/player-panel/createQueueM
 import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong } from './types';
 import type { LocalSong } from './types';
 import { getLocalSongArrayBuffer } from './services/localMusicService';
+import { sendNowPlayingControl } from './services/nowPlayingControl';
+import type { NowPlayingControlCommand, NowPlayingRepeatMode, NowPlayingShuffleMode } from './services/nowPlayingControl';
 import type { MediaId, OnlineProviderId, ProviderCollection } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
+import { buildMirroredAppleSong, mapExternalLoopToFolia, mapFoliaLoopToExternal, resolveAppleCatalogId } from './services/onlineMusic/externalPlaybackTarget';
+import { buildExternalQueueSongs, findExternalQueueIndexById } from './utils/externalQueue';
+import { autoMatchBestLyric } from './utils/lyrics/autoMatchBestLyric';
+import { buildNowPlayingLyricSource } from './utils/lyrics/nowPlayingSource';
+import { LyricParserFactory } from './utils/lyrics/LyricParserFactory';
 import { consumeProgrammaticPause, playbackFade } from './services/playbackFade';
 import { getSongArtistLabel, getSongCoverUrl } from './services/onlineMusic/songMetadata';
 import { isNavidromeEnabled } from './services/navidromeService';
@@ -75,6 +82,10 @@ import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useKugouLibrary } from './hooks/useKugouLibrary';
 import { useQqLibrary } from './hooks/useQqLibrary';
 import { useBodianLibrary } from './hooks/useBodianLibrary';
+import { useAppleLibrary } from './hooks/useAppleLibrary';
+import { useAppleLoginGate } from './hooks/useAppleLoginGate';
+import AppleLoginGuide from './components/app/AppleLoginGuide';
+import ConfirmDialog from './components/shared/ConfirmDialog';
 import { useLibraryAccountController } from './library/app/useLibraryAccountController';
 import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibraryAccountPort';
 import { useAppWallToolsHost } from './components/app/wall-tools/useAppWallToolsHost';
@@ -743,36 +754,61 @@ export default function App() {
         logout: logoutQqLibrary,
     } = useQqLibrary();
     const { refresh: refreshBodianLibrary, logout: logoutBodianLibrary } = useBodianLibrary();
+    const { refresh: refreshAppleLibrary, logout: logoutAppleLibrary } = useAppleLibrary();
     const onlineProviderRefreshers = useMemo<Partial<Record<OnlineProviderId, () => Promise<unknown>>>>(() => ({
         netease: refreshUserData,
         kugou: refreshKugouLibrary,
         qq: refreshQqLibrary,
         bodian: refreshBodianLibrary,
-    }), [refreshKugouLibrary, refreshQqLibrary, refreshBodianLibrary, refreshUserData]);
+        apple: refreshAppleLibrary,
+    }), [refreshKugouLibrary, refreshQqLibrary, refreshBodianLibrary, refreshAppleLibrary, refreshUserData]);
     const onlineProviderLogouts = useMemo<Partial<Record<OnlineProviderId, () => Promise<void>>>>(() => ({
         netease: handleLogout,
         kugou: logoutKugouLibrary,
         qq: logoutQqLibrary,
         bodian: logoutBodianLibrary,
-    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary, logoutBodianLibrary]);
+        // Apple 的登出多一档「要不要连带退出浏览器会话」，所以这里只做 L1+L2，
+        // L3 由 App 在用户确认后再调（见 handleAppleBrowserLogout）。
+        apple: () => logoutAppleLibrary().then(() => undefined),
+    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary, logoutBodianLibrary, logoutAppleLibrary]);
 
     // 在线账户 controller（Library v2 · A4）：扫码登录、选平台、切换确认与登出都在 core，App 只交出 per-provider 的
     // 刷新与登出，以及确认切换后的播放清理端口。端口读的三样（audio / automix 句柄、歌词写入）都是稳定引用，建一次。
+    // 登出的第三档（清浏览器会话）需要用户确认：它会真的把 Apple Music 网页登出。
+    const [appleBrowserLogoutOpen, setAppleBrowserLogoutOpen] = useState(false);
     const [providerSwitchCleanup] = useState(() => createLibraryAccountSwitchCleanupPort(() => ({
         audioRef,
         automixRef,
         setLyrics: setLyricsStable,
     })));
+    // 控制器先于 gate 创建，而「点 Apple 要走登录引导」的回调在控制器里：用 ref 接住 gate 的入口。
+    const appleLoginGateRef = useRef<{ check: () => Promise<void>; showGuide: () => void } | null>(null);
     const accountController = useLibraryAccountController({
         refreshers: onlineProviderRefreshers,
         logouts: onlineProviderLogouts,
         switchCleanup: providerSwitchCleanup,
+        // Apple 登出（L1+L2）完成后，再问一句要不要把浏览器里那个会话也退掉（L3）。
+        onLoggedOut: (providerId: OnlineProviderId) => {
+            if (providerId !== 'apple') return;
+            setAppleBrowserLogoutOpen(true);
+            // 登出后立刻重新校验：引导卡是用户重新登录的唯一入口，不该等下次启动才出现。
+            void appleLoginGateRef.current?.check();
+        },
+        // Apple 没有扫码流程：点平台列表里的 Apple 直接亮引导卡，不建注定失败的扫码会话。
+        onAppleLoginRequired: () => appleLoginGateRef.current?.showGuide(),
     });
     const { providers: onlineProviders, activeProviderId } = useLibraryAccountProviders(accountController);
     const activeProvider = useMemo(
         () => resolveActiveProviderSummary(onlineProviders, activeProviderId),
         [activeProviderId, onlineProviders],
     );
+    // 启动时的 Apple 登录态校验：只有当前音源是 Apple 才打扰用户。
+    const appleLoginGate = useAppleLoginGate({
+        enabled: activeProviderId === 'apple',
+        onAuthenticated: refreshAppleLibrary,
+    });
+    appleLoginGateRef.current = appleLoginGate;
+
     // 保留 App 对整张账户表的订阅（原先 useOnlineProviderPlatform 订阅它）：底栏与命令面板的收藏心形
     // （resolveSongLiked → omni.isSongLiked）经 getState 读各平台的 likedSongIds，账户摘要里没有它，
     // 只订阅 controller 快照的话收藏之后心形不会当场更新。取值没有用处。
@@ -825,6 +861,7 @@ export default function App() {
         nowPlayingConnectionStatus,
         nowPlayingTrack,
         nowPlayingLyricPayload,
+        nowPlayingQueue,
         nowPlayingProgressMs,
         nowPlayingProgressQuality,
         nowPlayingPaused,
@@ -861,6 +898,204 @@ export default function App() {
         setIsLyricsLoading,
         navigateToPlayer,
     });
+
+    /**
+     * 外部播放镜像：当前曲目是交给外部播放器的那种（Apple 曲目）、且不在舞台上时，把 now-playing
+     * 送来的进度、暂停态与封面写回全局播放器状态，让底栏与播放页如实跟着外部播放器走。曲名与时长
+     * 在发起播放时已经写过。舞台模式下不插手：那条路有自己的回灌。
+     */
+    const externalClockRef = useRef<{
+        progressMs: number;
+        atMs: number;
+        paused: boolean;
+        displaySec: number | null;
+        frameAtMs: number;
+    }>({ progressMs: 0, atMs: 0, paused: true, displaySec: null, frameAtMs: 0 });
+    useEffect(() => {
+        if (isNowPlayingStageActive) return;
+        // 循环档位回灌必须放在 currentSong 判空之前：页面重载后 Folia 手上没有曲目（currentSong
+        // 为 null），但外部播放器还在放，档位照样该照过来。只有在自己放本地曲目时才让开。
+        if (!currentSong || resolveAppleCatalogId(currentSong)) {
+            const mirroredLoopMode = mapExternalLoopToFolia(nowPlayingTrack?.repeatMode);
+            if (mirroredLoopMode) {
+                useAudioSettingsStore.getState().syncLoopModeFromExternal(mirroredLoopMode);
+            }
+        }
+        if (!resolveAppleCatalogId(currentSong)) return;
+        if (nowPlayingTrack?.coverUrl) setCachedCoverUrl(nowPlayingTrack.coverUrl);
+        if (nowPlayingTrack?.durationMs) setDuration(nowPlayingTrack.durationMs / 1000);
+        // 外部播放器推送间隔再密也有粒度（100ms 起步），直接拿它当时间会让歌词读头一顿一顿。
+        // 这里只记「这帧进度是几点收到的」，真正的走时由 getExternalDisplayTime 用本地时钟接。
+        externalClockRef.current = {
+            progressMs: Math.max(0, nowPlayingProgressMs),
+            atMs: performance.now(),
+            paused: nowPlayingPaused,
+            displaySec: nowPlayingPaused ? Math.max(0, nowPlayingProgressMs) / 1000 : externalClockRef.current.displaySec,
+            frameAtMs: performance.now(),
+        };
+        // 暂停时没有帧在走，得当场把光标摆正；播放时交给插值，别在这里硬掰（每次都掰就是抖的来源）。
+        if (nowPlayingPaused) currentTime.set(Math.max(0, nowPlayingProgressMs) / 1000);
+        setPlayerState(nowPlayingPaused ? PlayerState.PAUSED : PlayerState.PLAYING);
+    }, [
+        currentSong,
+        isNowPlayingStageActive,
+        nowPlayingPaused,
+        nowPlayingProgressMs,
+        nowPlayingTrack,
+        setCachedCoverUrl,
+        setDuration,
+        setPlayerState,
+    ]);
+
+    /**
+     * 外部播放器的「此刻播放到哪」。两次进度推送之间用本地单调时钟补足，播放时按 60fps 平滑
+     * 前进，暂停时钉住。进度条和歌词读头都用它，才能既跟得上又不一跳一跳。
+     */
+    const getExternalDisplayTime = useCallback(() => {
+        const clock = externalClockRef.current;
+        const now = performance.now();
+        const anchor = clock.progressMs / 1000;
+        if (clock.paused) {
+            clock.displaySec = anchor;
+            clock.frameAtMs = now;
+            return anchor;
+        }
+        if (clock.displaySec == null) {
+            clock.displaySec = anchor;
+            clock.frameAtMs = now;
+            return anchor;
+        }
+        const dt = Math.max(0, now - clock.frameAtMs) / 1000;
+        clock.frameAtMs = now;
+        // 两次推送之间完全由本地时钟往前走，不等外部数据。
+        let next = clock.displaySec + dt;
+        // 外部那条线在此刻应该到哪儿
+        const target = anchor + Math.max(0, now - clock.atMs) / 1000;
+        const error = target - next;
+        if (Math.abs(error) > 0.4) {
+            // 明显错位（拖了进度条、掉帧、换曲）就直接对齐，别慢慢爬
+            next = target;
+        } else {
+            // 小误差每帧只吃一小口：外部进度本身有粒度，整口吃掉会看出抖动
+            next += error * 0.12;
+        }
+        const ceiling = duration > 0 ? duration : next;
+        clock.displaySec = Math.min(ceiling, Math.max(0, next));
+        return clock.displaySec;
+    }, [duration]);
+
+    /**
+     * 外部播放换曲镜像：Apple 自己往下走（自动切歌，或用户在 Apple 那边手动换）时，把曲目本体
+     * 也照过来。
+     *
+     * 之前只回灌了封面/时长/进度，`currentSong` 停在点歌那一刻——于是标题、歌手、专辑名、歌词
+     * 全都落后一整首（歌词按 `currentSong` 取，于是干脆没有）。这里用外部播放器报回来的
+     * 目录 id / 标题重建当前曲目，界面信息就完全以外部播放器为准了。
+     *
+     * 让路条件：舞台模式（那条路有自己的回灌）、当前在放本地曲目（不该被外部源顶掉）。
+     * 当前曲目为 null 时不挡——重载后 Folia 手上没曲目，而外部播放器还在放，这时候正该补上。
+     */
+    const mirroredExternalCatalogId = nowPlayingTrack?.catalogId ?? null;
+    const mirroredExternalTitle = nowPlayingTrack?.title ?? null;
+    useEffect(() => {
+        if (isNowPlayingStageActive) return;
+        if (!mirroredExternalCatalogId && !mirroredExternalTitle) return;
+        const currentCatalogId = resolveAppleCatalogId(currentSong);
+        // 当前放的是本地曲目：外部源的换曲不该把它顶掉。
+        if (currentSong && !currentCatalogId) return;
+        const sameSong = mirroredExternalCatalogId
+            ? currentCatalogId === mirroredExternalCatalogId
+            : currentSong?.name === mirroredExternalTitle;
+        if (sameSong) return;
+        if (!nowPlayingTrack) return;
+        setCurrentSong(buildMirroredAppleSong(nowPlayingTrack));
+        currentTime.set(0);
+    }, [
+        currentSong,
+        isNowPlayingStageActive,
+        mirroredExternalCatalogId,
+        mirroredExternalTitle,
+        nowPlayingTrack,
+        setCurrentSong,
+    ]);
+
+    /**
+     * 外部播放的歌词来源。
+     *
+     * 外部播放器自带的歌词大多数只有逐句、没有翻译（有些曲目干脆没有）。网易 / QQ 那边通常
+     * 有逐字（AMLL TTML / QRC）和翻译，所以这里先按「标题 + 歌手 + 时长」自动匹配一次在线歌词，
+     * 命中就整份用它；匹配不到再退回外部播放器自带的那份。
+     *
+     * 在线匹配要走网络，所以同一个曲目只打一次（`externalLyricKeyRef` 记着已经处理过的 key）；
+     * 等网络期间先把自带歌词挂上，避免切换曲目时歌词区整块空白。
+     */
+    const externalLyricCatalogId = resolveAppleCatalogId(currentSong);
+    const externalLyricKey = externalLyricCatalogId
+        ? `${externalLyricCatalogId}|${currentSong?.name ?? ''}|${currentSong?.durationMs ?? 0}`
+        : '';
+    const externalLyricKeyRef = useRef('');
+    const externalOnlineLyricKeyRef = useRef('');
+    useEffect(() => {
+        if (!externalLyricKey || !currentSong) return;
+        if (externalLyricKeyRef.current === externalLyricKey) return;
+        externalLyricKeyRef.current = externalLyricKey;
+        // 切到新曲目先清空上一首的歌词。纯音乐这类两条来源（在线匹配、外部自带）都取不到的曲目，
+        // 如果留着旧歌词不擦，歌词区就会一直显示上一首歌的内容。
+        setLyrics(null);
+        usePlaybackStore.getState().setCurrentLineIndex(-1);
+        let cancelled = false;
+        const settings = useLyricSettingsStore.getState();
+        const artistName = (currentSong.artists ?? []).map((artist) => artist.name).join(', ');
+        setIsLyricsLoading(true);
+        void autoMatchBestLyric(currentSong.name, artistName, currentSong.durationMs, {
+            album: currentSong.album?.name,
+            preferredSource: settings.preferredAlternativeLyricSource,
+        }).then((best) => {
+            if (cancelled) return;
+            setIsLyricsLoading(false);
+            // 命中在线歌词（含逐字 + 翻译）：整份换掉，这是首选来源。
+            if (best && 'lyrics' in best && best.lyrics) {
+                externalOnlineLyricKeyRef.current = externalLyricKey;
+                setLyrics(best.lyrics);
+                usePlaybackStore.getState().setCurrentLineIndex(-1);
+            }
+            // 没命中就保持现状：下面的兜底 effect 会把外部播放器自带的那份挂上。
+        }).catch(() => {
+            if (!cancelled) setIsLyricsLoading(false);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [currentSong, externalLyricKey, setLyrics]);
+
+    /**
+     * 在线歌词还没到手（或没匹配到）时，用外部播放器自带的歌词垫着。
+     * 一旦这首曲目已经拿到在线歌词，就不再用它覆盖。
+     */
+    useEffect(() => {
+        if (!externalLyricKey || !nowPlayingLyricPayload) return;
+        if (externalOnlineLyricKeyRef.current === externalLyricKey) return;
+        const lyricSource = buildNowPlayingLyricSource(nowPlayingLyricPayload);
+        if (!lyricSource) return;
+        let cancelled = false;
+        void LyricParserFactory.parse(lyricSource as never)
+            .then((parsed) => {
+                if (cancelled || !parsed) return;
+                // 解析期间在线歌词可能已经到了，别把它盖回去。
+                if (externalOnlineLyricKeyRef.current === externalLyricKey) return;
+                setLyrics(parsed);
+            })
+            .catch(() => {
+                // 解析失败：保持当前歌词不动。
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [externalLyricKey, nowPlayingLyricPayload, setLyrics]);
+
+    // 队列的集合与顺序**不再回灌**到 Folia 的 playQueue：外部播放时队列归对方所有，面板直接读
+    // 对方的整份待播清单（见 playerDisplayQueue）。此前这里会按 Apple 的 queueItemIds 重排并剔除
+    // 对不上的曲目，那是真实删数据——退出外部播放后用户自己的队列就没了。
 
     const {
         restoreStatus: windowPlaybackHandoffRestoreStatus,
@@ -1427,6 +1662,54 @@ export default function App() {
         activeDeck: automix.activeDeck,
     });
 
+    const sendExternalPlaybackControl = useCallback((
+        command: NowPlayingControlCommand,
+        positionMs?: number,
+        options: { catalogId?: string; mode?: NowPlayingRepeatMode | NowPlayingShuffleMode } = {}
+    ) => {
+        // 乐观回执：一次下发要「解冻页面 → 执行 → 回读」，几百毫秒里界面不动，用户就以为没点中。
+        // 这里先把本地状态改成用户期望的样子，桥回执后由进度/暂停推送自然校正。
+        if (command === 'pause' || command === 'play' || command === 'toggle') {
+            const nextState = command === 'pause'
+                ? PlayerState.PAUSED
+                : command === 'play'
+                    ? PlayerState.PLAYING
+                    : (displayPlayerState === PlayerState.PLAYING ? PlayerState.PAUSED : PlayerState.PLAYING);
+            setPlayerState(nextState);
+            externalClockRef.current.paused = nextState !== PlayerState.PLAYING;
+        } else if (command === 'seek' && typeof positionMs === 'number') {
+            const targetSec = Math.max(0, positionMs) / 1000;
+            currentTime.set(targetSec);
+            externalClockRef.current.progressMs = Math.max(0, positionMs);
+            externalClockRef.current.atMs = performance.now();
+            externalClockRef.current.displaySec = targetSec;
+            externalClockRef.current.frameAtMs = performance.now();
+        }
+        void sendNowPlayingControl(command, positionMs, options).then((result) => {
+            if (!result.ok || !result.applied) {
+                console.warn(`[now-playing] 播控未生效：${command}${result.error ? ` (${result.error})` : ''}`);
+            }
+        });
+    }, [currentTime, displayPlayerState, setPlayerState]);
+
+    /**
+     * 是否处于「外部播放」：舞台开着跟外部源走，或当前曲目得交给外部播放器（Apple 曲目在 Folia
+     * 里没有可播的流，DRM）。传输动作、进度跳转与 OS 级媒体键都按它分流，不再只看舞台。
+     * 放在 useTransportCommandRefs 之前 —— 那四个 ref 也要用它。
+     */
+    const appleCatalogId = resolveAppleCatalogId(currentSong);
+    const isExternalPlayback = isNowPlayingStageActive || Boolean(appleCatalogId);
+    // 随机档位：Apple 播放时 Folia 没有「随机模式」这个状态（只有一次性打乱队列的 shuffleQueue），
+    // 所以随机按钮改为往外部播放器推开关；Apple 侧真实档位从 nowPlayingTrack 回读，
+    // 点两次就是开/关，不会去打乱 Folia 自己那份 Apple 看不到的数组。
+    const isExternalShuffleOn = isExternalPlayback && nowPlayingTrack?.shuffleMode === 1;
+    const handleExternalShuffle = useCallback(() => {
+        void sendExternalPlaybackControl('setShuffleMode', undefined, {
+            mode: isExternalShuffleOn ? 'off' : 'songs',
+        });
+    }, [isExternalShuffleOn, sendExternalPlaybackControl]);
+    const handleShuffleQueue = isExternalPlayback ? handleExternalShuffle : shuffleQueue;
+
     const {
         mediaSessionPlayRef,
         mediaSessionPauseRef,
@@ -1434,7 +1717,27 @@ export default function App() {
         mediaSessionNextRef,
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
-    } = useTransportCommandRefs({ resumePlayback, pausePlayback, handlePrevTrack, handleNextTrack });
+    } = useTransportCommandRefs({
+        // OS 级传输（媒体键、任务栏缩略图工具栏、系统媒体浮窗）走的是这四个 ref。
+        // 外部播放器接管时它们必须转发出去 —— 否则这些按钮按下去只是调 Folia 自己的空播放器，
+        // 表现为「按了没反应」。
+        resumePlayback: async () => {
+            if (isExternalPlayback) {
+                sendExternalPlaybackControl('play');
+                return;
+            }
+            await resumePlayback();
+        },
+        pausePlayback: () => (isExternalPlayback ? sendExternalPlaybackControl('pause') : pausePlayback()),
+        handlePrevTrack: () => (isExternalPlayback ? sendExternalPlaybackControl('previous') : handlePrevTrack()),
+        handleNextTrack: async () => {
+            if (isExternalPlayback) {
+                sendExternalPlaybackControl('next');
+                return;
+            }
+            await handleNextTrack();
+        },
+    });
 
     useMediaSessionBridge({
         audioRef,
@@ -1526,7 +1829,10 @@ export default function App() {
         getPlayerCapDisplayTime,
         syncNowPlayingClock,
         lyricTimelineOffsetMs: effectiveLyricTimelineOffsetMs,
+        isExternalPlayback,
+        getExternalDisplayTime,
     });
+
 
     const {
         togglePlay,
@@ -1537,6 +1843,7 @@ export default function App() {
     } = usePlaybackInteractionBridge({
         stageActiveEntryKind,
         isNowPlayingStageActive,
+        onExternalTransportCommand: sendExternalPlaybackControl,
         audioRef,
         // Play-vs-pause cannot be decided off the active deck mid-blend: that is the arriving track,
         // and it is silent for the whole lead.
@@ -1553,6 +1860,23 @@ export default function App() {
         resumePlayback,
         syncStageLyricsClock,
     });
+
+    /**
+     * 外部播放时的循环按钮：先把新档位推给外部播放器，再照本地那套切。
+     * 不推的话会出现「Folia 按钮显示单曲循环、而 Apple 仍在列表循环」——两边对不上，
+     * 而且 Apple 到了队尾会因为自己的循环档位继续放或停住。
+     */
+    const handleCycleLoopMode = useCallback(() => {
+        if (isExternalPlayback) {
+            const nextLoopMode = effectiveLoopMode === 'off'
+                ? 'all'
+                : effectiveLoopMode === 'all'
+                    ? 'one'
+                    : 'off';
+            sendExternalPlaybackControl('setRepeatMode', undefined, { mode: mapFoliaLoopToExternal(nextLoopMode) });
+        }
+        toggleLoop();
+    }, [effectiveLoopMode, isExternalPlayback, sendExternalPlaybackControl, toggleLoop]);
 
     const { personalFmSelection, personalFmSelectionLabel, isPersonalFmModeSupported, setPersonalFmSelection } = usePersonalFmModeController({
         isFmMode,
@@ -1610,6 +1934,22 @@ export default function App() {
         visualizerMode,
     ]);
     const isNowPlayingControlDisabled = isNowPlayingStageActive;
+    /**
+     * 方向 2a：now-playing 舞台激活时，界面上的播控要打给外部播放器，而不是 Folia 自己的播放器。
+     *
+     * 判据是「内容与命令同源」：舞台上的歌、歌词、进度都来自 now-playing 源，那么按暂停就该暂停
+     * 那个源。不做乐观 UI —— 播放状态由服务端的 PlayerPauseState 事件回流，这里只把「没生效」
+     * 说出来（外部播放器可能刚被关掉，或命令被冻结的页面排队）。
+     */
+    /** 舞台/镜像下的播放暂停：外部源走外部播放器，其余情况维持原行为。 */
+    const handleStageTogglePlay = useCallback(() => {
+        if (isExternalPlayback) {
+            // 本地 playerState 描述的是 Folia 自己的播放器，对外部源没有意义，直接让外部自己翻转。
+            sendExternalPlaybackControl('toggle');
+            return;
+        }
+        togglePlay();
+    }, [isExternalPlayback, playerState, sendExternalPlaybackControl, togglePlay]);
 
     useElectronWindowChrome();
     const {
@@ -1630,9 +1970,13 @@ export default function App() {
         stageActiveEntryKind,
         audioSrc,
         duration,
+        // 外部源在场（舞台开着，或当前是 Apple 曲目、可以叫 Apple Music 去播）时，
+        // Folia 自己没有流可放，但「播放」按钮依然有意义：内容与命令同源。
+        hasExternalPlaybackTarget: isNowPlayingStageActive || Boolean(resolveAppleCatalogId(currentSong)),
     }), [
         activePlaybackContext,
         audioSrc,
+        currentSong,
         currentView,
         disableHomeDynamicBackground,
         duration,
@@ -1640,6 +1984,7 @@ export default function App() {
         hidePlayerRightPanelButton,
         hidePlayerTranslationSubtitle,
         isNowPlayingControlDisabled,
+        isNowPlayingStageActive,
         stageActiveEntryKind,
     ]);
     // 播放页空闲时连指针一起隐藏。复用控制栏的自动隐藏时钟（3 秒无鼠标移动），不新开计时器：
@@ -1750,12 +2095,13 @@ export default function App() {
         navigateToSearch,
 
         previewVolume: handlePreviewVolume,
-        togglePlay,
-        toggleLoop,
-        next: handleNextTrack,
-        prev: handlePrevTrack,
+        togglePlay: isExternalPlayback ? handleStageTogglePlay : togglePlay,
+        externalTransportActive: isExternalPlayback,
+        toggleLoop: handleCycleLoopMode,
+        next: isExternalPlayback ? () => sendExternalPlaybackControl('next') : handleNextTrack,
+        prev: isExternalPlayback ? () => sendExternalPlaybackControl('previous') : handlePrevTrack,
         playSong,
-        shuffleQueue,
+        shuffleQueue: handleShuffleQueue,
         clearQueue,
         applyQueueBatchOperation,
         removeQueueSong,
@@ -2051,12 +2397,23 @@ export default function App() {
         }
     }, [publishStagePlayerPlaybackUpdate]);
 
+    /** 进度条/歌词行的跳转：外部源发给外部播放器，其余走本地播放器。 */
+    const handleStageSeek = useCallback((time: number) => {
+        if (isExternalPlayback) {
+            sendExternalPlaybackControl('seek', Math.round(time * 1000));
+            return;
+        }
+        seekMainAudio(time);
+    }, [isExternalPlayback, sendExternalPlaybackControl, seekMainAudio]);
+
     const handleMonetLyricLineSeek = useCallback((lyricTimeSec: number) => {
-        if (isNowPlayingControlDisabled) {
+        const playbackTime = Math.max(0, lyricTimeSec + currentTime.get() - lyricCurrentTime.get());
+        if (isExternalPlayback) {
+            // 外部源：把同一个时间轴上的目标位置发给它，别去动本地播放器
+            sendExternalPlaybackControl('seek', Math.round(playbackTime * 1000));
             return;
         }
 
-        const playbackTime = Math.max(0, lyricTimeSec + currentTime.get() - lyricCurrentTime.get());
         if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
             syncStageLyricsClock(playbackTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
             currentTime.set(playbackTime);
@@ -2072,35 +2429,38 @@ export default function App() {
         audioSrc,
         currentTime,
         duration,
-        isNowPlayingControlDisabled,
+        isExternalPlayback,
         lyricCurrentTime,
         playerState,
         publishStagePlayerPlaybackUpdate,
         seekMainAudio,
+        sendExternalPlaybackControl,
         stageActiveEntryKind,
         stageLyricsClockRef,
         syncStageLyricsClock,
     ]);
 
     // Folium services (folium.playback / folium.ui) call through to these App handlers.
+    // 外部播放接管时（舞台或镜像），传输类动作全部改走外部播放器（同 handleMonetLyricLineSeek 的判据）。
     useFoliumHostActions({
-        play: resumePlayback,
-        pause: pausePlayback,
-        toggle: () => togglePlay(),
-        seek: seekMainAudio,
+        play: isExternalPlayback ? () => sendExternalPlaybackControl('play') : resumePlayback,
+        pause: isExternalPlayback ? () => sendExternalPlaybackControl('pause') : pausePlayback,
+        toggle: handleStageTogglePlay,
+        seek: handleStageSeek,
         seekToLyricTime: handleMonetLyricLineSeek,
-        next: () => { void handleNextTrack(); },
-        previous: handlePrevTrack,
+        next: isExternalPlayback ? () => sendExternalPlaybackControl('next') : () => { void handleNextTrack(); },
+        previous: isExternalPlayback ? () => sendExternalPlaybackControl('previous') : handlePrevTrack,
         playSong: (song) => playSong(song),
         playQueueSong: (song, queue, isFm) => playSong(song, queue, isFm),
         enqueue: addOnlineSongToQueue,
         navigateToPlayer,
         navigateToHome,
-        shuffleQueue,
+        shuffleQueue: handleShuffleQueue,
         toggleLike: handleLike,
         openVolume: () => commandPalette.invokeCommandById('playback-volume'),
         isLiked: commandPaletteContext.playback.isSongLiked,
-        controlsDisabled: isNowPlayingControlDisabled,
+        // 外部源的传输动作现在有去处了（见 externalTransport），宿主不再需要整体禁用控件
+        controlsDisabled: false,
     });
 
     const visualizerRendererModel = useVisualizerRendererModel({
@@ -2216,9 +2576,34 @@ export default function App() {
             ? applyLocalLibraryEntityDisplay(displaySong, localLibraryCatalog, playerDisplayCatalogIndex)
             : null
     ), [displaySong, localLibraryCatalog, playerDisplayCatalogIndex]);
-    const playerDisplayQueue = useMemo(() => (
-        playQueue.map(song => applyLocalLibraryEntityDisplay(song, localLibraryCatalog, playerDisplayCatalogIndex))
-    ), [localLibraryCatalog, playQueue, playerDisplayCatalogIndex]);
+    // 外部播放器接管时，队列面板直接显示对方的待播清单（只读镜像）——列表内容、顺序、长度
+    // 都以外部为准，Folia 只是照着画。
+    const externalQueueSongs = useMemo(
+        () => buildExternalQueueSongs(nowPlayingQueue, nowPlayingTrack?.catalogId ?? nowPlayingTrack?.id ?? null),
+        [nowPlayingQueue, nowPlayingTrack?.catalogId, nowPlayingTrack?.id],
+    );
+    /**
+     * 队列面板里点某一行。
+     *
+     * 外部播放时队列归对方所有：点行 = 在对方的待播清单里跳过去（只挪播放位置、不重建队列），
+     * 否则会把它辛苦维护的队列冲掉。本地播放维持原来的行为。
+     */
+    const handleQueueRowSelect = useCallback((song: SongResult) => {
+        if (isExternalPlayback && externalQueueSongs.length) {
+            const index = findExternalQueueIndexById(nowPlayingQueue, String(song.id ?? ''));
+            if (index >= 0) {
+                void sendNowPlayingControl('jumpToIndex', undefined, { index });
+                return;
+            }
+        }
+        playSong(song);
+    }, [externalQueueSongs.length, isExternalPlayback, nowPlayingQueue, playSong]);
+    const playerDisplayQueue = useMemo(() => {
+        if (isExternalPlayback && externalQueueSongs.length) {
+            return externalQueueSongs;
+        }
+        return playQueue.map(song => applyLocalLibraryEntityDisplay(song, localLibraryCatalog, playerDisplayCatalogIndex));
+    }, [isExternalPlayback, externalQueueSongs, localLibraryCatalog, playQueue, playerDisplayCatalogIndex]);
     // 搜索结果同样在展示时按当前目录重算：结果是提交那一刻的快照，导入后紧接着搜，实体目录可能还没加载完。
     const resolveSearchResultDisplay = useCallback((track: UnifiedSong) => (
         track.isLocal
@@ -2237,7 +2622,7 @@ export default function App() {
         handleAlbumSelect: handlePlayerPanelAlbumSelect,
         handleArtistSelect: handlePlayerPanelArtistSelect,
         effectiveLoopMode,
-        toggleLoop,
+        toggleLoop: handleCycleLoopMode,
         handleLike,
         generateAITheme: generateCurrentSongTheme,
         isGeneratingTheme,
@@ -2270,9 +2655,11 @@ export default function App() {
         openCommandPalette: commandPalette.open,
         isCommandPaletteOpen: commandPalette.isOpen,
         playQueue: playerDisplayQueue,
-        playSong,
+        playSong: handleQueueRowSelect,
+        queueReadOnly: isExternalPlayback && externalQueueSongs.length > 0,
         queueScrollRef,
-        shuffleQueue,
+        shuffleQueue: handleShuffleQueue,
+        shuffleActive: isExternalShuffleOn,
         removeQueueSong,
         moveQueueSongToEnd,
         moveQueueSongToNext,
@@ -2310,16 +2697,21 @@ export default function App() {
         syncStageLyricsClock,
         stageLyricsClockRef,
         togglePlay,
-        toggleLoop,
+        toggleLoop: handleCycleLoopMode,
         navigateToPlayer,
         navigateFromPlayerCapsule,
         shouldHidePlayerProgressBar,
         onSeekMainAudio: seekMainAudio,
         onStagePlayerSeek: publishStagePlayerPlaybackUpdate,
         isNowPlayingStageActive,
+        externalTransport: {
+            active: isExternalPlayback,
+            appleCatalogId,
+            onCommand: sendExternalPlaybackControl,
+        },
         handlePrevTrack,
         handleNextTrack,
-        shuffleQueue,
+        shuffleQueue: handleShuffleQueue,
         handleLike,
         isDisplaySongLiked: commandPaletteContext.playback.isSongLiked,
         invokeCommandById: commandPalette.invokeCommandById,
@@ -2770,16 +3162,22 @@ export default function App() {
                                 currentTime={currentTime}
                                 playbackDuration={displayDuration}
                                 canTogglePlayback={canToggleCurrentPlayback}
-                                queue={playQueue}
+                                queue={playerDisplayQueue}
                                 isDaylight={isDaylight}
                                 onBack={navigateBackFromLattice}
                                 onGoHome={navigateToHome}
                                 onOpenPlayer={navigateToPlayer}
-                                onPlaySong={(song, queue) => {
-                                    void playSong(song, queue, false, { shouldNavigateToPlayer: false });
+                                onPlaySong={(song) => {
+                                    // 拼接墙的队列和面板是同一份（外部播放时就是对方的待播清单）：
+                                    // 点画片=在对方队列里跳过去，不重建队列，否则会把对方排好的顺序冲掉。
+                                    if (isExternalPlayback) {
+                                        handleQueueRowSelect(song);
+                                        return;
+                                    }
+                                    void playSong(song, playerDisplayQueue, false, { shouldNavigateToPlayer: false });
                                 }}
-                                onTogglePlayback={togglePlay}
-                                onSeek={seekMainAudio}
+                                onTogglePlayback={handleStageTogglePlay}
+                                onSeek={handleStageSeek}
                             />
                         </Suspense>
                     </motion.div>
@@ -2891,6 +3289,29 @@ export default function App() {
                 onQueryCommit={commandPalette.commitQuery}
             />
 
+            <AppleLoginGuide
+                phase={appleLoginGate.phase}
+                visible={appleLoginGate.visible}
+                browserError={appleLoginGate.browserError}
+                failureCode={appleLoginGate.failureCode}
+                onStart={appleLoginGate.startLogin}
+                onRecheck={appleLoginGate.recheck}
+                onDismiss={appleLoginGate.dismiss}
+            />
+            <ConfirmDialog
+                isOpen={appleBrowserLogoutOpen}
+                title={t('account.appleBrowserLogoutTitle')}
+                description={t('account.appleBrowserLogoutDescription')}
+                confirmText={t('account.appleBrowserLogoutConfirm')}
+                cancelText={t('account.cancel')}
+                confirmVariant="danger"
+                isDaylight={isDaylight}
+                onConfirm={() => {
+                    setAppleBrowserLogoutOpen(false);
+                    void logoutAppleLibrary({ clearBrowserSession: true });
+                }}
+                onClose={() => setAppleBrowserLogoutOpen(false)}
+            />
             <AppDialogs model={appDialogsModel} />
             <ReleaseNotesDialog
                 isOpen={startupExperience.isReleaseNotesOpen}

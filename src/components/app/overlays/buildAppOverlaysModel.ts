@@ -93,6 +93,24 @@ export type AppOverlaysDeps = {
     effectiveLoopMode: 'off' | 'all' | 'one';
     canToggleCurrentPlayback: boolean;
     isNowPlayingControlDisabled: boolean;
+    /**
+     * 外部源（now-playing 节目）的播控通道。`active` 为真时，浮动控件上的传输动作
+     * 打给外部播放器而不是 Folia 自己的播放器 —— 内容与命令必须同源：屏幕上放的是
+     * 哪个源，按钮就该控制哪个源。
+     */
+    externalTransport?: {
+        active: boolean;
+        /**
+         * 当前曲目在 Apple Music 的目录 id。Folia 里没有可播的流（DRM），
+         * 所以对 Apple 曲目按「播放」只能让 Apple Music 去播那一首。
+         */
+        appleCatalogId?: string;
+        onCommand: (
+            command: 'play' | 'pause' | 'toggle' | 'next' | 'previous' | 'seek' | 'playSong',
+            positionMs?: number,
+            options?: { catalogId?: string },
+        ) => void;
+    };
     stageActiveEntryKind: string | null;
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
     stageLyricsClockRef: React.MutableRefObject<{ startTimeSec: number }>;
@@ -150,6 +168,7 @@ export const buildAppOverlaysModel = ({
     audioSrc,
     canToggleCurrentPlayback,
     isNowPlayingControlDisabled,
+    externalTransport,
     lyrics,
     activePlaybackContext,
     stageActiveEntryKind,
@@ -263,9 +282,15 @@ export const buildAppOverlaysModel = ({
             currentView,
             audioSrc,
             canTogglePlay: canToggleCurrentPlayback,
-            controlsDisabled: isNowPlayingControlDisabled,
+            controlsDisabled: isNowPlayingControlDisabled && !externalTransport?.active,
             lyrics,
             onSeek: (time) => {
+                if (externalTransport?.active) {
+                    // 外部源：同一个时间轴上的目标位置发给它
+                    externalTransport?.onCommand('seek', Math.round(time * 1000));
+                    return;
+                }
+
                 if (isNowPlayingControlDisabled) {
                     return;
                 }
@@ -281,7 +306,12 @@ export const buildAppOverlaysModel = ({
                     onSeekMainAudio(time);
                 }
             },
-            onTogglePlay: togglePlay,
+            onTogglePlay: externalTransport?.active
+                ? () => externalTransport?.onCommand('toggle')
+                // 舞台没开，但当前曲目是 Apple 的：Folia 播不了（没有流），改为让 Apple Music 播这一首。
+                : externalTransport?.appleCatalogId
+                    ? () => externalTransport?.onCommand('playSong', undefined, { catalogId: externalTransport?.appleCatalogId })
+                    : togglePlay,
             onToggleLoop: toggleLoop,
             onNavigateToPlayer: navigateFromPlayerCapsule,
             onFocusLatticeCurrentSong: () => { focusLatticeCurrentSong(); },
@@ -307,10 +337,17 @@ export const buildAppOverlaysModel = ({
 
                 return {
                     currentTrackKey: getPlaybackSongKey(currentSong),
-                    onPrev: handlePrevTrack,
-                    onNext: handleNextTrack,
-                    canPrev: neighbors.prev.canGo && !isNowPlayingControlDisabled,
-                    canNext: neighbors.next.canGo && !isNowPlayingControlDisabled,
+                    onPrev: externalTransport?.active ? () => externalTransport?.onCommand('previous') : handlePrevTrack,
+                    onNext: externalTransport?.active ? () => externalTransport?.onCommand('next') : handleNextTrack,
+                    // 队列的主人是外部播放器：它的清单里还留着已经播过的历史，Folia 这边算不出边界。
+                    // 两个箭头一律可点，走到尽头对方自己停 —— 比藏起来让人以为功能没了要好。
+                    canPrev: externalTransport?.active
+                        ? true
+                        : (isNowPlayingControlDisabled ? false : neighbors.prev.canGo),
+                    canNext: externalTransport?.active
+                        ? true
+                        : (isNowPlayingControlDisabled ? false : neighbors.next.canGo),
+                    alwaysShowArrows: Boolean(externalTransport?.active),
                     prevTitle: neighbors.prev.title,
                     nextTitle: neighbors.next.title,
                     prevLabel: prevTrackLabel,

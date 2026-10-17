@@ -19,6 +19,11 @@ describe('nowPlayingProvider', () => {
             album: 'Album',
             coverUrl: 'http://cover.test/a.jpg',
             durationMs: 210000,
+            repeatMode: null,
+            shuffleMode: null,
+            queueItemIds: null,
+            // 目录 id：Folia 靠它判断「Apple 那边换歌了」，缺失时是 null 而不是省略。
+            catalogId: null,
         });
     });
 

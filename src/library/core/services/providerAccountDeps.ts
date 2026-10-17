@@ -13,6 +13,7 @@ import type {
     LibraryProviderAccountPort,
     LibraryProviderSwitchCleanupPort,
 } from '../contracts/account';
+import type { OnlineProviderId } from '../../../types/onlineMusic';
 
 // src/library/core/services/providerAccountDeps.ts
 // 在线账户 controller 的默认装配：扫码 auth 直接用 omni 的同名方法；provider 列表与当前平台读
@@ -84,6 +85,10 @@ export type ProviderAccountHostPorts = {
     providerAccounts: LibraryProviderAccountPort;
     switchCleanup: LibraryProviderSwitchCleanupPort;
     log?: LibraryAccountLogger;
+    /** 登出成功后的出口（Apple 用它问「要不要连浏览器会话一起退」）。 */
+    onLoggedOut?: (providerId: OnlineProviderId) => void;
+    /** 选了不走扫码的登录（Apple）时的出口：宿主打开专用浏览器窗口。 */
+    onAppleLoginRequired?: (providerId: OnlineProviderId) => void;
 };
 
 /** 组装 controller 的全部依赖：宿主端口 + 上面的默认端口。 */
@@ -96,4 +101,6 @@ export const createProviderAccountDeps = (host: ProviderAccountHostPorts): Libra
     clock: windowAccountClock,
     diagnostics: resolveLoginDiagnosticsEnvironment(),
     log: host.log,
+    onLoggedOut: host.onLoggedOut,
+    onAppleLoginRequired: host.onAppleLoginRequired,
 });

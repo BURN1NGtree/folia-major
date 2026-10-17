@@ -41,6 +41,11 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
     },
     getPersonalFm: () => omni.getPersonalFm(),
     playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
+    // 电台由对方（Apple Music）那边播，所以只发一条播控命令，不走 onPlaySong（Folia 没有可播的流）。
+    playStation: async (stationId) => {
+        const { sendNowPlayingControl } = await import('../../services/nowPlayingControl');
+        await sendNowPlayingControl('playStation', undefined, { catalogId: stationId });
+    },
     describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),
     describeLocalGroup: group => createLocalGridViewCollection(group),
     describeNavidromeCard: (card, type) => createNavidromeGridViewCollection(card, type),

@@ -25,10 +25,12 @@ export type OnlineHomeFeedDeps = {
         personalFm: SongResult[];
         dailySongs: SongResult[];
         recommendedCollections: ProviderCollection[];
+        stations?: ProviderCollection[];
         partial?: true;
     }>;
     songCoverUrl(song: SongResult | undefined, providerId: string): string | undefined;
     supportsDailySongs?(providerId: string): boolean;
+    supportsPersonalFm?(providerId: string): boolean;
 };
 
 const sameOwner = (a: LibraryHomeFeedOwner | null, b: LibraryHomeFeedOwner | null) => (
@@ -136,19 +138,21 @@ export const createFavoriteAlbumsFeed = (
 
 /** 电台 feed 资源：私人 FM 与每日推荐只取封面与数量（卡片由 core/model/homeCards 组装）。 */
 export const createRadioFeed = (
-    deps: Pick<OnlineHomeFeedDeps, 'getHomeFeed' | 'songCoverUrl' | 'supportsDailySongs'>,
+    deps: Pick<OnlineHomeFeedDeps, 'getHomeFeed' | 'songCoverUrl' | 'supportsDailySongs' | 'supportsPersonalFm'>,
 ): LibraryHomeFeedResource<LibraryHomeRadioFeed | null> => createHomeFeedResource<LibraryHomeRadioFeed | null>({
     label: 'radio feed',
     empty: null,
     load: async (owner) => {
-        const { personalFm, dailySongs, recommendedCollections, partial } = await deps.getHomeFeed(HOME_FEED_RECOMMENDATION_LIMIT);
+        const { personalFm, dailySongs, recommendedCollections, stations, partial } = await deps.getHomeFeed(HOME_FEED_RECOMMENDATION_LIMIT);
         return {
             ...(partial ? { partial } : {}),
             personalFmCoverUrl: deps.songCoverUrl(personalFm[0], owner.providerId),
             dailyCoverUrl: deps.songCoverUrl(dailySongs[0], owner.providerId) || '',
             dailyCount: dailySongs.length,
             supportsDailySongs: deps.supportsDailySongs?.(owner.providerId) ?? true,
+            supportsPersonalFm: deps.supportsPersonalFm?.(owner.providerId) ?? true,
             recommended: recommendedCollections,
+            ...(stations && stations.length > 0 ? { stations } : {}),
         };
     },
     // 有一块没读到时照常显示读到的部分，但下次进电台页再读一遍（以前整份失败，下次进来也会重读）。

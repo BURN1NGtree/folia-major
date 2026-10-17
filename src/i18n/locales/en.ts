@@ -1177,7 +1177,11 @@ export default {
     "qualityExhigh": "Very High",
     "qualityLossless": "Lossless",
     "qualityHires": "Hi-Res",
-    "vipOnly": "VIP Only"
+    "vipOnly": "VIP Only",
+    "cancel": "Cancel",
+    "appleBrowserLogoutTitle": "Sign out of Apple Music in the browser too?",
+    "appleBrowserLogoutDescription": "Confirming clears Folia cache for Apple Music and signs out of Apple Music in the dedicated browser window (only music.apple.com data; your Apple ID is untouched). Pick confirm to switch accounts, or cancel to just disconnect Folia.",
+    "appleBrowserLogoutConfirm": "Sign out there too"
   },
   "playlist": {
     "play": "Play",
@@ -1306,6 +1310,9 @@ export default {
     "songs": "songs",
     "loginTitle": "Scan with Netease App",
     "loginNote": "Open Netease Music App > Discover > Scan QR",
+    "loginTitleApple": "Sign in to Apple Music",
+    "loginNoteApple": "Clicking opens a dedicated browser window; sign in there with your Apple ID. Folia never fills, reads or stores your password.",
+    "providerNotLoggedInApple": "Signed out · click to sign in",
     "loginTitleKugou": "Scan with KuGou Music",
     "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "loginTitleQq": "Scan to sign in to QQ Music",
@@ -2057,7 +2064,7 @@ export default {
     "enableStageModeDescElectron": "Exposes a local HTTP endpoint so Stage clients can read the current playback and lyric state.",
     "enableNowPlaying": "Enable Now Playing",
     "enableNowPlayingDesc": "When enabled, the home page shows a Stage entry point and connects via localhost to the now-playing service.",
-    "nowPlayingFixedConnectionDesc": "Connects to ws://localhost:9863/api/ws/lyric. Start the now-playing service on your machine first.",
+    "nowPlayingFixedConnectionDesc": "Connects to ws://localhost:9863/api/ws/lyric. The built-in service starts automatically when Apple Music is in use - no manual start needed.",
     "enableStageModeDescWeb": "When enabled, a Stage entry appears on the home page; pick a lyric source to connect to the local service.",
     "playerCapAddress": "Nexus PlayerCap address",
     "playerCapAddressHint": "Leave blank for the local default localhost:8765; saved and reconnected on blur.",
@@ -2082,8 +2089,8 @@ export default {
     "stageTokenRegenerating": "Regenerating...",
     "clearStageSession": "Clear Stage Input",
     "stageClearing": "Clearing...",
-    "stageConnectionError": "Could not connect to ws://localhost:9863/api/ws/lyric. Please make sure the now-playing service is running.",
-    "stageNotRunning": "Please start the now-playing service on this machine and ensure the player is playing.",
+    "stageConnectionError": "Could not connect to ws://localhost:9863/api/ws/lyric. The built-in service starts with Apple Music; give it a moment after switching sources.",
+    "stageNotRunning": "Play an Apple Music track to start the built-in service, or run your own now-playing service on this machine.",
     "discordRichPresence": "Discord Rich Presence",
     "enableDiscordRichPresence": "Enable Discord playback status",
     "discordRichPresenceDesc": "Show the current Folia track in Discord desktop. Folia connects with its built-in application identity.",
@@ -2845,7 +2852,7 @@ export default {
     "playerCapConnectedStatus": "Nexus PlayerCap connected",
     "playerCapDisconnectedStatus": "Nexus PlayerCap not connected",
     "nowPlayingStatusLabel": "Connection status: {{status}}",
-    "nowPlayingStatusHint": "Connects to ws://localhost:9863/api/ws/lyric. Start the now-playing service first.",
+    "nowPlayingStatusHint": "Connects to ws://localhost:9863/api/ws/lyric. The built-in service starts automatically when Apple Music is in use.",
     "globalLyricTimelineOffset": "Global Timing Offset",
     "globalLyricTimelineOffsetDesc": "Shift the lyric timeline for every song on this device to compensate Bluetooth or other output latency. Opens a live preview for fine tuning.",
     "lyricFilterRegex": "Lyric Filtering",
@@ -3609,7 +3616,9 @@ export default {
     "playNext": "Play next",
     "empty": "Queue is empty",
     "title": "Play Queue",
-    "shuffle": "Shuffle Queue"
+    "shuffle": "Shuffle Queue",
+    "appleReadOnly": "Apple Music can't edit this queue",
+    "readOnly": "Read-only"
   },
   "theme": {
     "switchToDark": "Switch to Dark Mode",
@@ -5043,5 +5052,25 @@ export default {
         "keyboardOutcome": "Press {{mod}} + K and the same window opens."
       }
     }
-  }
+  },
+  "appleLogin": {
+    "title": "Sign in to Apple Music",
+    "stepOpen": "Press “Open sign-in window” and Folia launches a dedicated browser window",
+    "stepSelf": "Type your Apple ID, password and 2FA code in that browser — Folia never fills, reads or stores them",
+    "stepDone": "Come back to Folia after signing in and press “Check again”",
+    "waiting": "The browser is open. Finish signing in there, then come back and press “Check again”.",
+    "checking": "Checking sign-in state…",
+    "openWindow": "Open sign-in window",
+    "reopenWindow": "Reopen sign-in window",
+    "recheck": "Check again",
+    "later": "Later",
+    "dismiss": "Dismiss",
+    "privacyNote": "Your password and 2FA code are only entered in the browser; Folia never touches them.",
+    "failureStillSignedOut": "The browser is still signed out. Finish signing in, then check again.",
+    "failureProbe": "Could not read the sign-in state — the browser window may be closed or the port unreachable.",
+    "failureBridge": "This build has no desktop bridge, so the sign-in window cannot be launched.",
+    "failureNoBrowser": "No usable browser (Edge or Chrome) was found. Install one, or start Apple Music manually with the debug port 127.0.0.1:9222.",
+    "failureNotReady": "The browser started but its debug port is not ready yet. Wait a moment and try again.",
+    "failureGeneric": "Sign-in check did not pass. Reopen the sign-in window and try once more."
+  },
 } as const;

@@ -135,7 +135,19 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
         playPersonalFm,
 
         openOnlineCard: async (card: LibraryHomeCard, providerId: string, open: LibraryHomeOpenCollection) => {
+            // 注：station 分支在下面 return，不受 providerId / open 影响。
             if (isPersonalFmCard(card)) return playPersonalFm();
+            // 电台不是歌单：打开集合页什么也没有，正确动作是让对方那边开这条电台。
+            if (card.type === 'station') {
+                if (!port.playStation) return UNSUPPORTED;
+                try {
+                    await port.playStation(String(card.id));
+                    return OK;
+                } catch (error) {
+                    console.error('[LibraryHome] Failed to start station:', error);
+                    return FAILED;
+                }
+            }
             open(port.describeOnlineCollection(onlineCardCollection(card), providerId));
             return OK;
         },

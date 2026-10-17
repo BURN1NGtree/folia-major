@@ -189,6 +189,11 @@ export const omni = {
         return typeof requireOnlineMusicProvider(providerId).recommendations?.getDailySongs === 'function';
     },
 
+    /** 私人 FM 是真能力还是摆设：没有 getPersonalFm 的源（Apple）点了只会拿到空数组。 */
+    supportsPersonalFm(providerId: OmniProviderId): boolean {
+        return typeof requireOnlineMusicProvider(providerId).recommendations?.getPersonalFm === 'function';
+    },
+
     getProviderAvailability(providerId: OmniProviderId) {
         return requireOnlineMusicProvider(providerId).getAvailability?.() ?? { configured: true };
     },
@@ -451,6 +456,8 @@ export const omni = {
         personalFm: UnifiedSong[];
         dailySongs: UnifiedSong[];
         recommendedCollections: OmniCollection[];
+        /** 电台（动态流）。没有电台概念的源不返回这一块。 */
+        stations?: OmniCollection[];
         /** 有一块失败、按空处理了：调用方可以照常显示，但下次应该再读一遍。 */
         partial?: true;
     }> {
@@ -458,11 +465,13 @@ export const omni = {
             const recommendations = provider.recommendations;
             // 三块各自成败：一块失败（例如 QQ 日推被上游拒绝）只让那一块为空、结果标成 partial，不把 FM 与推荐歌单
             // 一起拖下去；三块都失败才算这次首页推荐失败。作废（AbortError）不算某一块的失败，整次照常作废。
-            const [personalFm, dailySongs, recommendedCollections] = await Promise.allSettled([
+            const [personalFm, dailySongs, recommendedCollections, stations] = await Promise.allSettled([
                 recommendations?.getPersonalFm?.() ?? [],
                 recommendations?.getDailySongs?.() ?? [],
                 recommendations?.getRecommendedCollections?.(limit) ?? [],
+                recommendations?.getStations?.(limit) ?? [],
             ]);
+            // 只把原有三块算进成败：电台是可选能力，缺席或失败都不该让整次读取失败。
             const settled = [personalFm, dailySongs, recommendedCollections];
             const failures = settled.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
             const aborted = failures.find(failure => (failure.reason as { name?: unknown } | null)?.name === 'AbortError');
@@ -478,6 +487,8 @@ export const omni = {
                 personalFm: valueOf(personalFm),
                 dailySongs: valueOf(dailySongs),
                 recommendedCollections: valueOf(recommendedCollections),
+                // 没有电台的源不返回这个键：返回值形状与以前一致，调用方不必处理空数组。
+                ...(stations.status === 'fulfilled' && stations.value.length > 0 ? { stations: stations.value } : {}),
                 ...(failures.length > 0 ? { partial: true as const } : {}),
             };
         });

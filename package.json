@@ -34,6 +34,7 @@
     "test:render": "playwright test -c playwright.probe.config.ts",
     "benchmark:lyrics": "npx tsx test/manual/lyrics_benchmark.ts",
     "manual:lyrics": "npx tsx test/manual/netease_lyrics_cli.ts",
+    "manual:apple-provider": "npx tsx test/manual/apple_provider_live.mts",
     "audit:lyrics-sources": "npx tsx test/manual/lyric-audit/index.ts",
     "probe:netease-xeapi": "node test/manual/netease_xeapi_probe.cjs",
     "manual:wallpaper-watchdog": "npx tsx test/manual/wallpaper-watchdog-sim.ts",

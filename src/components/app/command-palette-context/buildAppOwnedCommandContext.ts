@@ -27,7 +27,7 @@ export type SharedCommandContextDeps = Pick<
 
 export type PlaybackCommandContextDeps = Pick<
     CommandPaletteContext['playback'],
-    | 'previewVolume' | 'togglePlay' | 'toggleLoop' | 'next' | 'prev' | 'queue'
+    | 'previewVolume' | 'togglePlay' | 'externalTransportActive' | 'toggleLoop' | 'next' | 'prev' | 'queue'
     | 'shuffleQueue' | 'clearQueue' | 'applyQueueBatchOperation' | 'removeQueueSong'
     | 'moveQueueSongToNext' | 'moveQueueSongToEnd' | 'setReplayGainMode' | 'isFmMode'
     | 'isPersonalFmModeSupported' | 'setPersonalFmSelection' | 'runAutoMatchBestLyric' | 'toggleCurrentSongPureMusicMark'

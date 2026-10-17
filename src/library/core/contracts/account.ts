@@ -207,7 +207,9 @@ export type LibraryStartLoginResult =
 export type LibrarySelectProviderResult =
     | { action: 'unavailable'; providerId: OnlineProviderId; reason: LibraryProviderUnavailableReason }
     | { action: 'switch'; result: LibrarySwitchResult }
-    | { action: 'login'; result: LibraryStartLoginResult };
+    | { action: 'login'; result: LibraryStartLoginResult }
+    /** Apple：没有扫码流程，已交给宿主打开专用浏览器窗口，这里不建扫码会话。 */
+    | { action: 'apple-login'; providerId: OnlineProviderId };
 
 /**
  * 在当前登录会话里重新要码（选登录方式、重试、后端重启后续上）被拒的原因：
@@ -398,6 +400,16 @@ export type LibraryAccountControllerDeps = {
     clock: LibraryAccountClock;
     diagnostics: LibraryLoginDiagnosticsEnvironment;
     log?: LibraryAccountLogger;
+    /**
+     * 登出成功后的一次出口。给「登出还要不要连带做别的事」留位置 ——
+     * Apple 用它问用户要不要把浏览器里的 Apple Music 会话也退掉。
+     */
+    onLoggedOut?: (providerId: OnlineProviderId) => void;
+    /**
+     * 选了「不走扫码的登录」的平台（当前只有 Apple）时的一次出口：宿主负责打开专用浏览器窗口。
+     * 这样扫码那套会话不会被建起来，界面也不会闪一个注定失败的二维码。
+     */
+    onAppleLoginRequired?: (providerId: OnlineProviderId) => void;
 };
 
 // ─── account surface ────────────────────────────────────────────────────

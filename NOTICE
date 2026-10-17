@@ -1,0 +1,48 @@
+NOTICE
+======
+
+本项目是基于开源项目 Folia 修改的衍生版本（unofficial downstream fork）。
+This project is an unofficial fork of the open-source project Folia.
+
+上游项目 / Upstream
+-------------------
+名称      Folia
+仓库      https://github.com/chthollyphile/folia-major
+作者      上游作者及贡献者（chthollyphile 等）
+许可证    GNU Affero General Public License v3.0 (AGPL-3.0)
+版权声明  见 LICENSE 与各源文件头部注释，未作任何删改
+
+本衍生版本 / This fork
+---------------------
+维护者    BURN1NGtree (GitHub)
+基线提交  103be0af（上游 v0.7.20 之后 15 个提交的快照，本地标签 baseline/v0.7.20-pristine）
+修改日期  2026-10-17 至 2026-10-17
+仓库地址  TODO(待仓库地址确定)
+
+修改摘要 / Summary of changes
+-----------------------------
+1. 新增 Apple Music 接入：通过 Chrome DevTools Protocol 控制本机浏览器中的官方
+   Apple Music 网页播放器，读取播放状态与队列，并向其下发播放指令。
+   新增文件包括 electron/appleMusicBridge.cjs、electron/appleMusicBrowser.cjs、
+   electron/nowplaying/（bridge.mjs、cdp-lib.mjs、supervisor.cjs）。
+2. 在线音乐服务层增加 Apple 数据源适配（搜索、歌单、专辑、电台、歌词归一化）。
+3. 播放链路对接：舞台与队列控制改用 Apple 源时的播控与进度回填。
+4. 界面与文案：Apple 平台的登录入口、引导卡片、中文提示与错误文案。
+5. 若干稳定性修复（队列快照冻结、播控验证窗口、纯音乐歌词残留、专辑歌手名缺失）。
+
+以上修改均以 diff / 源码 tarball 形式随 Release 提供，可逐条核对。
+
+声明 / Statements
+-----------------
+- 上游作者未参与本衍生版本的开发，未审阅这些改动，也未对本版本作出任何背书或担保。
+- 本衍生版本整体继续以 AGPL-3.0 授权。完整对应源码随每个 Release 提供
+  （folia-major-src.tar.gz 与 folia-major-changes.patch）。
+- Folia 的名称与标识归上游作者所有；Apple、Apple Music 是 Apple Inc. 的商标。
+  本项目不使用上述商标暗示官方关联、赞助或认可。
+- 本软件不包含、不分发也不转存任何音频内容，不绕过任何付费机制。
+  详见 DISCLAIMER.md。
+
+------
+
+NOTICE 说明：发布前请把“仓库地址”一行的 TODO 替换为新仓库的实际 URL，
+并确认“修改日期”覆盖全部改动发生的时段。

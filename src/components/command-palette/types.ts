@@ -148,6 +148,8 @@ export type CommandPalettePlaybackContext = {
     setVolume: (volume: number) => void;
     previewVolume: (volume: number) => void;
     togglePlay: () => void;
+    /** 是否由外部播放器（now-playing 舞台源）接管播放：为真时播放/暂停不再依据本地播放状态判断。 */
+    externalTransportActive: boolean;
     toggleLoop: () => void;
     next: () => void;
     prev: () => void;

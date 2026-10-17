@@ -5,6 +5,8 @@ import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource, loadOnlineSo
 import { getSongReplacement, isSongUnavailable } from '../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { omni } from '../services/onlineMusic/omni';
+import { mapFoliaLoopToExternal, resolveAppleCatalogId } from '../services/onlineMusic/externalPlaybackTarget';
+import { sendNowPlayingControl } from '../services/nowPlayingControl';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs, refreshPrefetchAfterQueueEdit } from '../services/prefetchService';
 import { getLocalSong } from '../services/db';
@@ -471,6 +473,54 @@ export function usePlaybackQueueController({
             return;
         }
         const song = allowedSong;
+        // Apple Music 曲目在 Folia 里没有可播的流（provider 的 `capabilities.playback` 为 false），
+        // 照常往下走只会落到「暂时无法播放」。这类曲目把播放动作交给外部播放器：发一条 playSong
+        // 命令，界面状态由 useStagePlaybackController 的镜像数据回灌，看起来跟在 Folia 里播一样。
+        const externalCatalogId = resolveAppleCatalogId(song as never);
+        if (externalCatalogId && !omni.canPlaySong(song)) {
+            // 队列统一：整条队列都是外部曲目时把**整条**推过去。只点名一首的话，对方只会建出
+            // length=1 的队列，nextPlayableItemIndex / previousPlayableItemIndex 都是 -1 ——
+            // 上一首/下一首键就废了（这正是之前那个 bug 的根）。把整条推过去，对方的待播列表
+            // 才和 Folia 看到的一致。
+            // 队里只要混进一首本地曲目就退回单首点名：那种队列本来就该由 Folia 自己驱动，
+            // 硬推过去会让外部播放器播不了本地曲目。
+            const externalQueueIds = queue.length > 1
+                ? queue
+                    .map((queuedSong) => resolveAppleCatalogId(queuedSong as never))
+                    .filter((catalogId): catalogId is string => Boolean(catalogId))
+                : [];
+            // 解析不出 catalogId 的歌（下架 / 换区 / 只有本地条目）**单独剔掉**，而不是让它们把
+            // 整条队列拖回「单首点名」：那些歌外部播放器本来也播不了，推一个能播的子集才是对的。
+            // 但点名的那首必须还在里面，否则推过去队列里没有它，等于跳到了别的歌。
+            const pushWholeQueue = externalQueueIds.length > 1
+                && externalQueueIds.includes(externalCatalogId);
+            // 循环模式要显式推：外部播放器的循环是它自己的残留状态，不推就会停在上一次的档位上，
+            // 于是「列表播放」的歌单放到最后一首会突然停住。Folia 用 off/all/one，MusicKit 用 none/one/all。
+            const pushedRepeatMode = mapFoliaLoopToExternal(useAudioSettingsStore.getState().loopMode);
+            // 串行发出：桥对每个请求都要解冻页面并回读状态，两条并发会互相打断。
+            void (async () => {
+                await sendNowPlayingControl('playSong', undefined, pushWholeQueue
+                    ? { catalogId: externalCatalogId, ids: externalQueueIds as string[] }
+                    : { catalogId: externalCatalogId });
+                await sendNowPlayingControl('setRepeatMode', undefined, { mode: pushedRepeatMode });
+            })();
+            const mirrorStore = usePlaybackStore.getState();
+            mirrorStore.setCurrentSong(song);
+            mirrorStore.setAudioSrc(null);
+            mirrorStore.setDuration((song.durationMs ?? 0) / 1000);
+            mirrorStore.setPlayerState(PlayerState.PLAYING);
+            // 队列跟着一起写：队列面板/底栏的「下一首」读的就是这份。传空时至少放进当前这首，
+            // 否则界面上会出现「在播但队列为空」，切歌按钮算不出邻居。
+            mirrorStore.setPlayQueue(queue.length > 0 ? queue : [song]);
+            mirrorStore.setActivePlaybackContext('main');
+            currentTime.set(0);
+            // 和本地曲目那条路一样，点歌之后按「开始播放后去哪」的设置走：拼接模式就进拼接，
+            // 播放页就进播放页。少了这一步，外部曲目点卡片只会原地不动 —— 看起来像没反应。
+            if (options.shouldNavigateToPlayer ?? true) {
+                navigateToPlaybackView();
+            }
+            return;
+        }
         // A pause still fading out belongs to the song being replaced. Run it now instead of
         // dropping it: the old song is still sounding and the new one can take seconds to load, so
         // dropping it would leave the old song at full volume under a PAUSED player. The fade node

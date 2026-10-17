@@ -1,4 +1,10 @@
-import type { NowPlayingConnectionStatus, NowPlayingLyricPayload, NowPlayingTrackSnapshot } from '../types';
+import type {
+    NowPlayingConnectionStatus,
+    NowPlayingLyricPayload,
+    NowPlayingQueueItem,
+    NowPlayingQueueSnapshot,
+    NowPlayingTrackSnapshot,
+} from '../types';
 
 export const NOW_PLAYING_WS_URL = 'ws://localhost:9863/api/ws/lyric';
 const NOW_PLAYING_RECONNECT_DELAY_MS = 2000;
@@ -13,6 +19,29 @@ type NowPlayingTrackMessage = {
     cover?: string;
     duration?: number;
     id?: string | number;
+    // 外部播放器的循环/随机档位（Apple 侧真实值），供双向同步回灌 Folia 的循环按钮。
+    repeatMode?: number | null;
+    shuffleMode?: number | null;
+    // 外部播放器待播清单的曲目 id 顺序。Apple 一开随机就自己重排，靠它把 Folia 的列表拉齐。
+    queueItemIds?: string[] | null;
+    // 曲目的目录 id。Folia 用它判断「外部播放器自己换歌了」，再把标题/歌手/专辑/封面一起照过来。
+    catalogId?: string | null;
+};
+
+/**
+ * 桥的 Queue 事件：外部播放器待播清单的整份快照（只读）。
+ * 只在队列真的变化时下发一次，不跟高频轮询跑。
+ */
+type NowPlayingQueueMessage = {
+    position?: number;
+    items?: Array<{
+        id?: string | null;
+        title?: string | null;
+        artist?: string | null;
+        album?: string | null;
+        cover?: string | null;
+        durationMs?: number | null;
+    }>;
 };
 
 type NowPlayingPlayerStateMessage = {
@@ -54,6 +83,13 @@ export type NowPlayingProviderSnapshot = {
     progressMs: number;
 };
 
+/** 两条 Track 的待播清单顺序是否一致；缺省与空数组等价（都没给 = 都不动顺序）。 */
+const areQueueIdsEqual = (left?: string[] | null, right?: string[] | null) => {
+    const a = Array.isArray(left) ? left : [];
+    const b = Array.isArray(right) ? right : [];
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+};
+
 const areTracksEqual = (
     left: NowPlayingTrackSnapshot | null,
     right: NowPlayingTrackSnapshot | null,
@@ -64,6 +100,12 @@ const areTracksEqual = (
     && left?.album === right?.album
     && left?.coverUrl === right?.coverUrl
     && left?.durationMs === right?.durationMs
+    // 循环/随机档位也算“曲目变了”。桥在档位变化时只发一条字段全同、仅这两个值不同的
+    // Track 消息，漏比它们就会被上面的去重整条丢掉，Folia 永远看不到外部改了档位。
+    && (left?.repeatMode ?? null) === (right?.repeatMode ?? null)
+    && (left?.shuffleMode ?? null) === (right?.shuffleMode ?? null)
+    // 队列顺序同理：随机一拨，桥会单发一条只有顺序变了的 Track，漏比就永远拉不齐两边列表。
+    && areQueueIdsEqual(left?.queueItemIds, right?.queueItemIds)
 );
 
 const areLyricsEqual = (
@@ -114,6 +156,8 @@ type NowPlayingProviderCallbacks = {
     onLyric?: (lyric: NowPlayingLyricPayload | null) => void;
     onPauseState?: (isPaused: boolean) => void;
     onProgress?: (update: NowPlayingProgressUpdate) => void;
+    /** 外部播放器的待播清单快照；null 表示对方明确没有队列。 */
+    onQueue?: (queue: NowPlayingQueueSnapshot | null) => void;
 };
 
 const clampProgressMs = (value: unknown): number => {
@@ -174,6 +218,48 @@ const normalizePauseStateProgressMs = (
     return Math.floor(safeValue);
 };
 
+/**
+ * 把桥的 Queue 事件折成待播清单快照。
+ *
+ * 一行要不要留：只要求有标题。id 可以缺（本地曲目没有目录 id），缺了置 null，
+ * 由上层判断「这一行不是外部曲目」。
+ */
+export const normalizeNowPlayingQueue = (raw: unknown): NowPlayingQueueSnapshot | null => {
+    if (!raw || typeof raw !== 'object') {
+        return null;
+    }
+
+    const message = raw as NowPlayingQueueMessage;
+    const list = Array.isArray(message.items) ? message.items : [];
+    const items: NowPlayingQueueItem[] = [];
+
+    for (const entry of list) {
+        const title = typeof entry?.title === 'string' ? entry.title.trim() : '';
+        if (!title) {
+            continue;
+        }
+        items.push({
+            id: entry?.id == null ? null : String(entry.id),
+            title,
+            artist: typeof entry?.artist === 'string' ? entry.artist : '',
+            album: typeof entry?.album === 'string' ? entry.album : '',
+            coverUrl: typeof entry?.cover === 'string' && entry.cover ? entry.cover : null,
+            durationMs: typeof entry?.durationMs === 'number' && Number.isFinite(entry.durationMs)
+                ? entry.durationMs
+                : null,
+        });
+    }
+
+    if (!items.length) {
+        return null;
+    }
+
+    return {
+        position: typeof message.position === 'number' && Number.isFinite(message.position) ? message.position : -1,
+        items,
+    };
+};
+
 export const normalizeNowPlayingTrack = (raw: unknown): NowPlayingTrackSnapshot | null => {
     if (!raw || typeof raw !== 'object') {
         return null;
@@ -199,6 +285,12 @@ export const normalizeNowPlayingTrack = (raw: unknown): NowPlayingTrackSnapshot 
         album: album || '',
         coverUrl: coverUrl || null,
         durationMs: durationMs || null,
+        repeatMode: typeof track.repeatMode === 'number' ? track.repeatMode : null,
+        shuffleMode: typeof track.shuffleMode === 'number' ? track.shuffleMode : null,
+        queueItemIds: Array.isArray(track.queueItemIds)
+            ? track.queueItemIds.map((value) => String(value)).filter(Boolean)
+            : null,
+        catalogId: typeof track.catalogId === 'string' && track.catalogId ? track.catalogId : null,
     };
 };
 
@@ -291,6 +383,7 @@ export class NowPlayingProvider {
             this.lastPreciseProgressAtMs = 0;
             this.callbacks.onTrack?.(null);
             this.callbacks.onLyric?.(null);
+            this.callbacks.onQueue?.(null);
             this.callbacks.onPauseState?.(true);
             this.callbacks.onProgress?.({ progressMs: 0, isReplay: true, quality: 'precise' });
             this.callbacks.onConnectionStatusChange?.('disabled');
@@ -368,6 +461,14 @@ export class NowPlayingProvider {
                 if (track) {
                     this.callbacks.onTrack?.(track);
                 }
+                break;
+            }
+            case 'Queue': {
+                const queue = normalizeNowPlayingQueue(payload.data);
+                if (this.debug) {
+                    console.log('[NowPlaying][ws] Normalized queue:', queue ? (queue.items.length + ' 首 @ ' + queue.position) : null);
+                }
+                this.callbacks.onQueue?.(queue);
                 break;
             }
             case 'Lyric': {

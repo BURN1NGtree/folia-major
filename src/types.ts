@@ -377,6 +377,48 @@ export interface NowPlayingTrackSnapshot {
   durationMs: number | null;
   isVideo?: boolean;
   isAdvertisement?: boolean;
+  /**
+   * 外部播放器当前的循环 / 随机档位，原样来自桥（MusicKit 的枚举数值：
+   * PlayerRepeatMode{none:0, one:1, all:2}、PlayerShuffleMode{off:0, songs:1}）。
+   * 不是每个源都给，缺省时不改界面。
+   */
+  repeatMode?: number | null;
+  shuffleMode?: number | null;
+  /**
+   * 外部播放器待播清单的曲目 id 顺序（Apple 的 queueItemIds）。
+   * 随机开关一拨，Apple 会自己把待播清单重排；Folia 的列表得跟着重排，否则两边「下一首」对不上。
+   * 不是每个源都给，缺省时不改顺序。
+   */
+  queueItemIds?: string[] | null;
+  /**
+   * 曲目的目录 id（Apple 的 catalogId）。
+   * 外部播放器自己换歌时，Folia 靠它判断「这不是我刚才点的那首」，再把标题、歌手、
+   * 专辑、封面一起换成外部播放器当前这首。
+   */
+  catalogId?: string | null;
+}
+
+/** 外部播放器待播清单里的一行（只读快照，字段直接对应桥的 Queue 事件）。 */
+export interface NowPlayingQueueItem {
+  /** 目录 id；取不到时为 null（本项目用它判断这一行是不是外部曲目）。 */
+  id: string | null;
+  title: string;
+  artist: string;
+  album: string;
+  coverUrl: string | null;
+  durationMs: number | null;
+}
+
+/**
+ * 外部播放器的整份待播清单。
+ *
+ * @note 队列归外部播放器所有：Folia 只读它、按它渲染，点击某一行是「跳到第 N 行」
+ *       而不是「用这个列表重建队列」。所以这里带 position，让面板能标出当前行。
+ */
+export interface NowPlayingQueueSnapshot {
+  /** 当前曲目在 items 里的下标；-1 表示外部播放器没在播队列里的东西。 */
+  position: number;
+  items: NowPlayingQueueItem[];
 }
 
 export interface NowPlayingLyricPayload {

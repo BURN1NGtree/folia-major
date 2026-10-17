@@ -243,7 +243,7 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
                                                     ? t('home.providerNotConfigured')
                                                     : accountless
                                                         ? t('home.providerNoAccount')
-                                                        : provider.user?.nickname || t('home.providerNotLoggedIn')}
+                                                        : provider.user?.nickname || t(provider.providerId === 'apple' ? 'home.providerNotLoggedInApple' : 'home.providerNotLoggedIn')}
                                             </span>
                                         </span>
                                         {!active && !canSwitchToProviderDirectly(provider) ? <LogIn size={16} className="opacity-55" /> : null}

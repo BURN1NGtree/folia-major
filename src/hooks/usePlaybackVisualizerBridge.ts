@@ -7,6 +7,7 @@ import type { AudioBands, LyricData } from '../types';
 import { setCurrentLineIndex, setPlayerState } from '../stores/usePlaybackStore';
 import { selectDisplayLyrics, usePlaybackStore } from '../stores/usePlaybackStore';
 import { audioBands, audioPower, currentTime, lyricCurrentTime } from '../stores/motionSignals';
+import { startSystemAudioCapture, stopSystemAudioCapture } from '../services/systemAudioSpectrum';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
 
@@ -32,6 +33,17 @@ type UsePlaybackVisualizerBridgeParams = {
     getPlayerCapDisplayTime: () => number;
     syncNowPlayingClock: (progressSec: number, durationSec: number, paused: boolean) => void;
     lyricTimelineOffsetMs: number;
+    /**
+     * 当前曲目由外部播放器（Apple Music）发声：Folia 自己不放音，进度条与歌词读头只能跟着
+     * 外部播放器的时间走。没有这条分支时，上面两个「有 audio 元素」的分支都进不去，
+     * `currentLineIndex` 会一直停在 -1，歌词看着在动但永远不高亮。
+     */
+    isExternalPlayback: boolean;
+    /**
+     * 外部播放器「此刻播放到哪」，由调用方用本地单调时钟在两次进度推送之间插值得到。
+     * 直接读推送值会让读头每 200ms 跳一格，看着就是卡顿。
+     */
+    getExternalDisplayTime: () => number;
     /** True while an automix handover is in progress and a deck other than the active one sounds. */
     isTransitionAudible: () => boolean;
     /**
@@ -64,6 +76,8 @@ export function usePlaybackVisualizerBridge({
     lyricTimelineOffsetMs,
     isTransitionAudible,
     getDisplayElement,
+    isExternalPlayback,
+    getExternalDisplayTime,
 }: UsePlaybackVisualizerBridgeParams) {
     // Read here rather than passed in: store fields and the module-level motion signals.
     const activePlaybackContext = usePlaybackStore(state => state.activePlaybackContext);
@@ -73,6 +87,11 @@ export function usePlaybackVisualizerBridge({
     const lyrics = usePlaybackStore(selectDisplayLyrics);
 
     const currentLineIndexRef = useRef(-1);
+    // Live loopback analyser while an external player owns the sound; null when nothing is captured.
+    const systemAnalyserRef = useRef<AnalyserNode | null>(null);
+    // Both external-source modes share one property: no deck of their own plays the song, so the
+    // spectrum has to be read from the machine's output instead of from an audio element.
+    const isExternalAudioSource = isNowPlayingStageActive || isPlayerCapStageActive;
 
     const updateLoop = useCallback(() => {
         // Normally the active deck; the outgoing one for as long as a blend holds the picture on
@@ -82,12 +101,17 @@ export function usePlaybackVisualizerBridge({
         // Mid-handover a deck can be loading while the other one is still sounding. The analyser
         // is downstream of both, so it has real signal: dropping to the idle breath here would put
         // a visible stutter at exactly the moment meant to be seamless.
-        const hasAudibleSignal = isActuallyPlaying || isTransitionAudible();
+        // While an external player owns the sound there is no deck at all: the live spectrum comes
+        // from the system-audio loopback capture, and that capture being live is itself the
+        // audible signal - the machine may be silent, and a flat spectrum then says exactly that.
+        const externalAnalyser = isExternalAudioSource ? systemAnalyserRef.current : null;
+        const activeAnalyser = externalAnalyser ?? (isExternalAudioSource ? null : analyserRef.current);
+        const hasAudibleSignal = isActuallyPlaying || isTransitionAudible() || externalAnalyser !== null;
 
-        if (hasAudibleSignal && analyserRef.current) {
-            const bufferLength = analyserRef.current.frequencyBinCount;
+        if (hasAudibleSignal && activeAnalyser) {
+            const bufferLength = activeAnalyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
-            analyserRef.current.getByteFrequencyData(dataArray);
+            activeAnalyser.getByteFrequencyData(dataArray);
             audioBands.spectrum?.set(dataArray);
 
             const getEnergy = (minHz: number, maxHz: number): number => {
@@ -180,6 +204,26 @@ export function usePlaybackVisualizerBridge({
                     setPlayerState(PlayerState.PAUSED);
                 }
             }
+        } else if (isExternalPlayback) {
+            // 外部播放器发声、又不是舞台/PlayerCap：时间由调用方按「最近一次推送 + 本地时钟」
+            // 插值给出，这里每帧都用它推进进度条与歌词读头，绝不自己发明时间。
+            const nextTime = getExternalDisplayTime();
+
+            currentTime.set(nextTime);
+
+            const effectiveLyricTime = nextTime - lyricTimelineOffsetMs / 1000;
+            lyricCurrentTime.set(effectiveLyricTime);
+
+            if (lyrics) {
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
+                if (foundIndex !== currentLineIndexRef.current) {
+                    currentLineIndexRef.current = foundIndex;
+                    setCurrentLineIndex(foundIndex);
+                }
+            } else if (currentLineIndexRef.current !== -1) {
+                currentLineIndexRef.current = -1;
+                setCurrentLineIndex(-1);
+            }
         } else if (isPlayerCapStageActive) {
             // PlayerCap: clock extrapolated from progress×duration; a passive source, looping/ending is driven by the external player, so no end/loop handling here.
             const nextTime = getPlayerCapDisplayTime();
@@ -241,6 +285,7 @@ export function usePlaybackVisualizerBridge({
         getNowPlayingDisplayTime,
         getPlayerCapDisplayTime,
         getSyntheticStageLyricsTime,
+        isExternalAudioSource,
         isNowPlayingStageActive,
         isPlayerCapStageActive,
         lyrics,
@@ -257,6 +302,32 @@ export function usePlaybackVisualizerBridge({
         isTransitionAudible,
         getDisplayElement,
     ]);
+
+    // Follow the external player: capture the machine's output while an external-source mode is
+    // on, and release the capture (and its single-use grant) as soon as the mode is off.
+    useEffect(() => {
+        if (!isExternalAudioSource) {
+            systemAnalyserRef.current = null;
+            void stopSystemAudioCapture();
+            return;
+        }
+
+        let cancelled = false;
+        void startSystemAudioCapture().then(analyser => {
+            if (!cancelled) {
+                systemAnalyserRef.current = analyser;
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isExternalAudioSource]);
+
+    // A capture outliving this hook would keep the loopback grant held; release it on unmount.
+    useEffect(() => () => {
+        void stopSystemAudioCapture();
+    }, []);
 
     useEffect(() => {
         animationFrameRef.current = requestAnimationFrame(updateLoop);

@@ -40,6 +40,8 @@ export const useLibraryHomeOnline = (
         canUseRadio: online.canUseRadio,
     });
 
+    // 歌单页签只放自己的歌单。推荐歌单（Apple 的「专属推荐歌单」）只出现在电台页签，
+    // 两边都挂同一份数据会让人看到两份一模一样的卡。
     const playlistCards = useMemo(() => buildOnlinePlaylistCards(online.collections, t), [online.collections, t]);
     const albumCards = useMemo(() => buildOnlineAlbumCards(favoriteAlbums.data, t), [favoriteAlbums.data, t]);
     const radioCards = useMemo(

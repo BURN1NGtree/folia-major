@@ -59,6 +59,7 @@ type RadioSource = {
     summary?: string;
     isFm?: boolean;
     isDailyRecommendations?: boolean;
+    isStation?: boolean;
 };
 
 /**
@@ -71,13 +72,15 @@ export const buildOnlineRadioCards = (
 ): LibraryHomeCard[] => {
     if (!feed) return [];
     const sources: RadioSource[] = [
-        {
+        // 私人 FM 只在源真的提供 FM 时出现：Apple 没有 FM（它的个性化电台是 station），
+        // 摆一张点了没反应的卡片比不摆更糟。
+        ...(feed.supportsPersonalFm === false ? [] : [{
             id: PERSONAL_FM_CARD_ID,
             name: t('home.personalFm'),
             coverUrl: feed.personalFmCoverUrl,
             description: t('home.personalFm'),
             isFm: true,
-        },
+        }]),
         ...(feed.supportsDailySongs === false ? [] : [{
             id: DAILY_RECOMMENDATIONS_CARD_ID,
             name: t('home.dailyRecommendations'),
@@ -87,6 +90,13 @@ export const buildOnlineRadioCards = (
             summary: t('home.dailyRecommendationsSummary'),
             isDailyRecommendations: true,
         }]),
+        ...(feed.stations ?? []).map(station => ({
+            id: station.id,
+            name: station.name,
+            coverUrl: station.coverUrl,
+            description: station.description || t('home.radio'),
+            isStation: true,
+        })),
         ...feed.recommended.map(collection => {
             const description = collection.description || collection.creator?.nickname || '';
             return {
@@ -106,9 +116,11 @@ export const buildOnlineRadioCards = (
         summary: source.summary || '',
         type: source.isFm
             ? 'radio'
-            : source.isDailyRecommendations
-                ? 'daily_recommendations'
-                : 'playlist',
+            : source.isStation
+                ? 'station'
+                : source.isDailyRecommendations
+                    ? 'daily_recommendations'
+                    : 'playlist',
         raw: source,
     }));
 };

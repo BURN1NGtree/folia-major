@@ -18,9 +18,12 @@ interface QueueTabProps {
     queueScrollRef: React.RefObject<HTMLDivElement | null>;
     shouldScrollToCurrent?: boolean;
     onShuffle?: () => void;
+    shuffleActive?: boolean;
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
+    /** 只读：队列归外部播放器所有，增删/移动都不该在 Folia 里做，直接隐藏编辑按钮。 */
+    isReadOnly?: boolean;
     canSaveLocalPlaylist?: boolean;
     /** Opens the same queue as a poster wall; absent when the host has no wall to show. */
     onOpenLattice?: () => void;
@@ -35,6 +38,7 @@ type QueueRowProps = {
     onMoveSongToNext: QueueTabProps['onMoveSongToNext'];
     onMoveSongToEnd: QueueTabProps['onMoveSongToEnd'];
     onRemoveSong: QueueTabProps['onRemoveSong'];
+    isReadOnly?: boolean;
     isDaylight: boolean;
     labels: {
         unavailable: string;
@@ -55,6 +59,7 @@ const QueueRow = ({
     onMoveSongToNext,
     onMoveSongToEnd,
     onRemoveSong,
+    isReadOnly,
     isDaylight,
     labels,
 }: RowComponentProps<QueueRowProps>): React.ReactElement => {
@@ -87,6 +92,7 @@ const QueueRow = ({
                 </div>
                 <div className="text-[10px] opacity-40 truncate">{getSongArtistLabel(song)}</div>
             </div>
+            {!isReadOnly && (
             <div className="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
                 {[
                     { label: labels.playNext, icon: ListPlus, action: onMoveSongToNext },
@@ -111,6 +117,7 @@ const QueueRow = ({
                     </button>
                 ))}
             </div>
+            )}
         </div>
     );
 };
@@ -122,9 +129,11 @@ const QueueTab: React.FC<QueueTabProps> = ({
     queueScrollRef,
     shouldScrollToCurrent = false,
     onShuffle,
+    shuffleActive,
     onRemoveSong,
     onMoveSongToEnd,
     onMoveSongToNext,
+    isReadOnly = false,
     canSaveLocalPlaylist = false,
     onOpenLattice,
     onSaveCurrentQueueAsPlaylist,
@@ -159,6 +168,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
         onMoveSongToNext,
         onMoveSongToEnd,
         onRemoveSong,
+        isReadOnly,
         isDaylight,
         labels: {
             unavailable: t('status.songUnavailableTag'),
@@ -236,6 +246,14 @@ const QueueTab: React.FC<QueueTabProps> = ({
                 <div className="flex items-center justify-between px-2 pb-2 shrink-0">
                     <span className="text-xs font-medium opacity-60">
                         {t('queue.title')} ({playQueue.length})
+                        {isReadOnly && (
+                            <span
+                                title={t('queue.appleReadOnly')}
+                                className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none ${isDaylight ? 'bg-black/10 text-black/55' : 'bg-white/10 text-white/55'}`}
+                            >
+                                {t('queue.readOnly')}
+                            </span>
+                        )}
                     </span>
                     <div className="flex items-center gap-1">
                         {onOpenLattice && (
@@ -260,8 +278,11 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         {onShuffle && (
                             <button
                                 onClick={onShuffle}
-                                className="p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
-                                title={t('queue.shuffle')}
+                                className={shuffleActive
+                                    ? 'p-1.5 rounded-md transition-colors opacity-100 bg-white/10'
+                                    : 'p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100'}
+                                title={shuffleActive ? `${t('queue.shuffle')}（已开启）` : t('queue.shuffle')}
+                                aria-pressed={shuffleActive || undefined}
                             >
                                 <Shuffle size={14} />
                             </button>

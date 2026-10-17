@@ -473,6 +473,12 @@ export interface OnlineRecommendationProvider {
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
     getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;
+    /**
+     * 电台（Apple 的「XX 的电台」「探索电台」这类动态流）。它们既不是歌单也不是歌曲，
+     * 所以单列一个方法：调用方据 type === 'radio' 分流成「在对方那边开电台」。
+     * 不提供则视为该源没有电台卡片。
+     */
+    getStations?(limit: number): Promise<ProviderCollection[]>;
     getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
     getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;

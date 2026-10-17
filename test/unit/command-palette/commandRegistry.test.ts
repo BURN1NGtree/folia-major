@@ -45,6 +45,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             isPersonalFmModeSupported: true,
             setPersonalFmSelection: vi.fn(),
             togglePlay: vi.fn(),
+            externalTransportActive: false,
             toggleLoop: vi.fn(),
             next: vi.fn(),
             prev: vi.fn(),
@@ -1073,6 +1074,20 @@ describe('play and pause commands', () => {
     it('starts paused playback and leaves Pause alone', () => {
         expect(execute('playback-play', PlayerState.PAUSED)).toHaveBeenCalled();
         expect(execute('playback-pause', PlayerState.PAUSED)).not.toHaveBeenCalled();
+    });
+
+    // 外部播放器接管（now-playing 舞台）时，本地播放状态永远是暂停/空闲，但屏幕上确实在放歌。
+    // 这时 Play 和 Pause 都不能被本地状态挡住，两者都要把手交给 togglePlay（由 App 路由到外部源）。
+    it('hands both commands to the external transport when it owns playback', () => {
+        const executeExternal = (id: string, playerState: PlayerState) => {
+            const context = createContext({ shared: { playerState } });
+            context.playback.externalTransportActive = true;
+            COMMAND_PALETTE_COMMANDS.find(entry => entry.id === id)!.execute('', context);
+            return context.playback.togglePlay;
+        };
+
+        expect(executeExternal('playback-pause', PlayerState.PAUSED)).toHaveBeenCalled();
+        expect(executeExternal('playback-play', PlayerState.IDLE)).toHaveBeenCalled();
     });
 });
 

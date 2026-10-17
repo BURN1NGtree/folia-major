@@ -92,6 +92,14 @@ describe('provider selection', () => {
         expect(resolveProviderSelection(summary({ status: 'anonymous', error: 'auth-required' }))).toEqual({ kind: 'login' });
     });
 
+    it('routes a signed-out Apple to its own browser sign-in instead of the QR flow', () => {
+        expect(resolveProviderSelection(summary({ providerId: 'apple', status: 'anonymous' }))).toEqual({ kind: 'apple-login' });
+    });
+
+    it('still switches directly to a signed-in Apple', () => {
+        expect(resolveProviderSelection(summary({ providerId: 'apple', status: 'authenticated' }))).toEqual({ kind: 'switch' });
+    });
+
     it('switches directly to a signed-in provider', () => {
         expect(resolveProviderSelection(summary({ providerId: 'kugou', status: 'authenticated' }))).toEqual({ kind: 'switch' });
     });

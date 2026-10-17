@@ -179,6 +179,13 @@ export type AudioSettingsState = {
     /** Sets the repeat mode and toasts it like the repeat button; the mode already in effect is a no-op. */
     handleSetLoopMode: (mode: 'off' | 'all' | 'one') => void;
     handleToggleLoopMode: () => void;
+    /**
+     * Adopts the repeat mode the **external player** reports, without toasting, persisting, or
+     * pushing anything back. Used by the now-playing mirror so Folia's repeat button shows the
+     * player's real mode. Deliberately separate from `handleSetLoopMode`: that one is a user
+     * action and must not be re-entered from a mirror update.
+     */
+    syncLoopModeFromExternal: (mode: 'off' | 'all' | 'one') => void;
 };
 
 export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
@@ -333,6 +340,14 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
                 ? 'one'
                 : 'off';
         get().handleSetLoopMode(next);
+    },
+    syncLoopModeFromExternal: (mode) => {
+        if (mode === get().loopMode) {
+            return;
+        }
+        // 不 toast、不写 localStorage：这不是用户的动作，只是把外部播放器的档位照过来。
+        // 写 localStorage 会把「临时跟着外部走」变成下次启动的默认值。
+        set({ loopMode: mode });
     },
 }));
 

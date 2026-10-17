@@ -42,7 +42,8 @@ export const attachOnlineHomeFeeds = (
     resources.favoriteAlbums.setOwner(ownerOf(providerId, userId, canUseAlbums));
     resources.radioFeed.setOwner(ownerOf(providerId, userId, canUseRadio));
     if (tab === 'albums') void resources.favoriteAlbums.ensure();
-    if (tab === 'radio') void resources.radioFeed.ensure();
+    // 歌单页签也要读：推荐歌单与电台是同一个 getHomeFeed。
+    if (tab === 'radio' || tab === 'playlist') void resources.radioFeed.ensure();
 };
 
 export const useLibraryHomeOnlineFeeds = ({

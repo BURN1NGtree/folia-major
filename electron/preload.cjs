@@ -143,6 +143,15 @@ contextBridge.exposeInMainWorld('electron', {
     getKugouApiStatus: () => ipcRenderer.invoke('kugou-api-status'),
     kugouRequest: (operation, params) => ipcRenderer.invoke('kugou-api-request', operation, params),
     bodianRequest: (operation, params) => ipcRenderer.invoke('bodian-api-request', operation, params),
+    appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
+    // 登录引导要「把专用浏览器弄出来 / 收起来 / 登出时清会话」，只暴露这三个动作。
+    appleMusicBrowser: {
+        status: () => ipcRenderer.invoke('apple-music-browser-status'),
+        probe: () => ipcRenderer.invoke('apple-music-browser-probe'),
+        ensure: (options) => ipcRenderer.invoke('apple-music-browser-ensure', options),
+        hide: () => ipcRenderer.invoke('apple-music-browser-hide'),
+        clearSession: () => ipcRenderer.invoke('apple-music-browser-clear-session'),
+    },
     getQqPort: () => ipcRenderer.invoke('get-qq-port'),
     getQqApiStatus: () => ipcRenderer.invoke('get-qq-api-status'),
     onQqApiStatusChanged: (callback) => {
@@ -252,6 +261,8 @@ contextBridge.exposeInMainWorld('electron', {
     },
     chooseVideoExportPath: (defaultName, extension, displayName) => ipcRenderer.invoke('video-export-choose-path', defaultName, extension, displayName),
     reportDevicePixelRatio: (ratio) => ipcRenderer.invoke('report-device-pixel-ratio', ratio),
+    armSystemAudioLoopback: () => ipcRenderer.invoke('system-audio-loopback-arm'),
+    disarmSystemAudioLoopback: () => ipcRenderer.invoke('system-audio-loopback-disarm'),
     prepareVideoExportWindow: (size) => ipcRenderer.invoke('video-export-prepare-window', size),
     restoreVideoExportWindow: () => ipcRenderer.invoke('video-export-restore-window'),
     openVideoExportFile: (filePath) => ipcRenderer.invoke('video-export-open-file', filePath),

@@ -22,6 +22,10 @@ export type LibraryAccountHostTables = {
     logouts: Partial<Record<OnlineProviderId, () => Promise<void>>>;
     /** 确认切换后的清理（createLibraryAccountSwitchCleanupPort）。 */
     switchCleanup: LibraryProviderSwitchCleanupPort;
+    /** 登出成功后的出口（例如 Apple 要再问一句要不要退浏览器会话）。 */
+    onLoggedOut?: (providerId: OnlineProviderId) => void;
+    /** 选了不走扫码的登录（Apple）时的出口：宿主打开专用浏览器窗口。 */
+    onAppleLoginRequired?: (providerId: OnlineProviderId) => void;
 };
 
 const selectActiveProviderId = (snapshot: LibraryAccountSnapshot) => snapshot.activeProviderId;
@@ -32,6 +36,8 @@ export const useLibraryAccountController = (tables: LibraryAccountHostTables): L
     tablesRef.current = tables;
 
     const createController = () => createProviderAccountController(createProviderAccountDeps({
+        onLoggedOut: providerId => tablesRef.current.onLoggedOut?.(providerId),
+        onAppleLoginRequired: providerId => tablesRef.current.onAppleLoginRequired?.(providerId),
         providerAccounts: {
             // 没有刷新器时 resolve undefined：controller 不把它当失败，也不算一次刷新。
             refresh: async providerId => await tablesRef.current.refreshers[providerId]?.(),

@@ -106,10 +106,12 @@ type UnifiedPanelQueueProps = {
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
     queueScrollRef: React.RefObject<HTMLDivElement | null>;
     onShuffle: () => void;
+    shuffleActive?: boolean;
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
     onOpenLattice?: () => void;
+    isReadOnly?: boolean;
 };
 
 type UnifiedPanelAccountProps = {
@@ -216,7 +218,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         transparentPlayerBackground,
         onToggleTransparentPlayerBackground,
     } = playback;
-    const { playQueue, onPlaySong, queueScrollRef, onShuffle, onRemoveSong, onMoveSongToEnd, onMoveSongToNext } = queue;
+    const { playQueue, onPlaySong, queueScrollRef, onShuffle, onRemoveSong, onMoveSongToEnd, onMoveSongToNext, isReadOnly: queueReadOnly } = queue;
     const {
         onSaveCurrentQueueAsPlaylist,
         onOpenCurrentLocalAlbum,
@@ -884,9 +886,11 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 queueScrollRef={queueScrollRef}
                                                 shouldScrollToCurrent={isOpen && currentTab === 'queue'}
                                                 onShuffle={onShuffle}
+                                                shuffleActive={queue.shuffleActive}
                                                 onRemoveSong={onRemoveSong}
                                                 onMoveSongToEnd={onMoveSongToEnd}
                                                 onMoveSongToNext={onMoveSongToNext}
+                                                isReadOnly={queueReadOnly}
                                                 onOpenLattice={queue.onOpenLattice}
                                                 // TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
                                                 canSaveLocalPlaylist={canSaveQueueAsLocalPlaylist(currentSong, playQueue)}

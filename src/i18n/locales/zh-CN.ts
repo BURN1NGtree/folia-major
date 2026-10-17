@@ -1176,7 +1176,11 @@ export default {
     "qualityExhigh": "极高",
     "qualityLossless": "无损",
     "qualityHires": "Hi-Res",
-    "vipOnly": "VIP 专属"
+    "vipOnly": "VIP 专属",
+    "cancel": "取消",
+    "appleBrowserLogoutTitle": "同时退出浏览器里的 Apple Music？",
+    "appleBrowserLogoutDescription": "确认后会清掉 Folia 保存的 Apple Music 缓存，并在专用浏览器窗口里退出 Apple Music 账号（只清 music.apple.com 的登录数据，不动你的 Apple ID）。想换账号就选确认；只想让 Folia 先断开，选取消即可。",
+    "appleBrowserLogoutConfirm": "一起退出"
   },
   "playlist": {
     "play": "播放",
@@ -1305,6 +1309,9 @@ export default {
     "songs": "首",
     "loginTitle": "使用网易云APP扫码",
     "loginNote": "打开网易云音乐APP > 发现 > 扫一扫",
+    "loginTitleApple": "登录 Apple Music",
+    "loginNoteApple": "点一下会打开专用浏览器窗口；请在那个窗口里用你的 Apple ID 登录，Folia 不代填、不读取、不保存密码。",
+    "providerNotLoggedInApple": "未登录·点击登录",
     "loginTitleKugou": "使用酷狗音乐APP扫码",
     "loginNoteKugou": "打开酷狗音乐APP扫描二维码",
     "loginTitleQq": "扫码登录QQ音乐",
@@ -2056,7 +2063,7 @@ export default {
     "enableStageModeDescElectron": "开启后会暴露本机 HTTP 接口，供 Stage 客户端读取当前播放和歌词状态。",
     "enableNowPlaying": "启用 Now Playing",
     "enableNowPlayingDesc": "开启后首页显示舞台入口，并通过本机 localhost 连接 now-playing 服务。",
-    "nowPlayingFixedConnectionDesc": "固定连接 ws://localhost:9863/api/ws/lyric，请先在本机启动 now-playing 服务。",
+    "nowPlayingFixedConnectionDesc": "固定连接 ws://localhost:9863/api/ws/lyric。内置服务会在使用 Apple Music 时自动启动，无需手动运行。",
     "enableStageModeDescWeb": "开启后首页出现舞台入口，选择歌词来源后连接本机服务。",
     "playerCapAddress": "Nexus PlayerCap 地址",
     "playerCapAddressHint": "留空默认本机 localhost:8765；失焦自动保存并重连。",
@@ -2083,8 +2090,8 @@ export default {
     "stageTokenRegenerating": "重新生成中...",
     "clearStageSession": "清空 Stage 输入",
     "stageClearing": "清空中...",
-    "stageConnectionError": "未能连接到 ws://localhost:9863/api/ws/lyric，请确认 now-playing 服务已在本机运行",
-    "stageNotRunning": "请在本机启动 now-playing 服务，并确保播放器正在播放",
+    "stageConnectionError": "未能连接到 ws://localhost:9863/api/ws/lyric。内置服务在使用 Apple Music 时自动启动，刚切换音源时稍等片刻即可。",
+    "stageNotRunning": "先播放一首 Apple Music 歌曲即可（内置服务会自动启动），也可改为在本机运行外部 now-playing 服务",
     "discordRichPresence": "Discord 播放状态",
     "enableDiscordRichPresence": "启用 Discord 播放状态",
     "discordRichPresenceDesc": "在 Discord 桌面端展示 Folia 当前播放歌曲。",
@@ -2847,7 +2854,7 @@ export default {
     "playerCapConnectedStatus": "Nexus PlayerCap 已连接",
     "playerCapDisconnectedStatus": "Nexus PlayerCap 未连接",
     "nowPlayingStatusLabel": "连接状态：{{status}}",
-    "nowPlayingStatusHint": "固定连接 ws://localhost:9863/api/ws/lyric，请先在本机启动 now-playing 服务。",
+    "nowPlayingStatusHint": "固定连接 ws://localhost:9863/api/ws/lyric。内置服务会在使用 Apple Music 时自动启动。",
     "globalLyricTimelineOffset": "全局时间偏移",
     "globalLyricTimelineOffsetDesc": "为本设备的所有歌曲整体平移歌词时间轴，补偿蓝牙等输出延迟。点击后可在实时预览中微调。",
     "lyricFilterRegex": "歌词过滤",
@@ -3608,7 +3615,9 @@ export default {
     "playNext": "下一首播放",
     "empty": "播放列表为空",
     "title": "播放队列",
-    "shuffle": "打乱队列"
+    "shuffle": "打乱队列",
+    "appleReadOnly": "Apple Music 不支持修改待播清单",
+    "readOnly": "只读"
   },
   "theme": {
     "switchToDark": "切换到深色模式",
@@ -5042,5 +5051,25 @@ export default {
         "keyboardOutcome": "直接按 {{mod}} + K，打开的是同一个窗口。"
       }
     }
-  }
+  },
+  "appleLogin": {
+    "title": "登录 Apple Music",
+    "stepOpen": "点「打开登录窗口」，Folia 会唤起一个专用浏览器窗口",
+    "stepSelf": "在浏览器里自己输入 Apple ID、密码和双重验证码 —— Folia 不代填、不读取、不保存",
+    "stepDone": "登录完成后回到 Folia，点「重新检测」",
+    "waiting": "浏览器已打开，请在浏览器里完成登录；登录完成后回到这里点「重新检测」。",
+    "checking": "正在检查登录态…",
+    "openWindow": "打开登录窗口",
+    "reopenWindow": "重新打开登录窗口",
+    "recheck": "重新检测",
+    "later": "稍后再说",
+    "dismiss": "关掉（本次不再提示）",
+    "privacyNote": "账号密码与验证码只在浏览器里输入，Folia 不接触这些内容。",
+    "failureStillSignedOut": "浏览器里仍是未登录状态。请确认登录完成，再重新检测。",
+    "failureProbe": "读取登录态失败，可能是浏览器窗口被关闭或端口不通。可以重新打开登录窗口再试。",
+    "failureBridge": "当前版本没有桌面桥，无法唤起登录窗口。",
+    "failureNoBrowser": "没找到可用的浏览器（Edge 或 Chrome）。装一个再试，或手动把 Apple Music 页面开在 127.0.0.1:9222 调试端口上。",
+    "failureNotReady": "浏览器已启动但调试端口还没就绪，稍等几秒再点一次。",
+    "failureGeneric": "登录态校验没有通过，可以重新打开登录窗口再试一次。"
+  },
 } as const;

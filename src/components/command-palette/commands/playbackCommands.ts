@@ -59,9 +59,11 @@ export const playbackCommands: CommandPaletteCommand[] = [
         keywords: ['播放'],
         icon: Play,
         execute: (_input, context) => {
-            if (context.shared.playerState !== PlayerState.PLAYING) {
-                context.playback.togglePlay();
+            // 外部播放器接管时本地播放状态无意义（now-playing 舞台没歌），此时不该被本地状态挡住。
+            if (!context.playback.externalTransportActive && context.shared.playerState === PlayerState.PLAYING) {
+                return true;
             }
+            context.playback.togglePlay();
             return true;
         },
     },
@@ -73,9 +75,10 @@ export const playbackCommands: CommandPaletteCommand[] = [
         keywords: ['暂停'],
         icon: Pause,
         execute: (_input, context) => {
-            if (context.shared.playerState === PlayerState.PLAYING) {
-                context.playback.togglePlay();
+            if (!context.playback.externalTransportActive && context.shared.playerState !== PlayerState.PLAYING) {
+                return true;
             }
+            context.playback.togglePlay();
             return true;
         },
     },

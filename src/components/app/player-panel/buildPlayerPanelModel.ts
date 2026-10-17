@@ -93,8 +93,11 @@ export type PlayerPanelDeps = {
     isCommandPaletteOpen?: boolean;
     playQueue: UnifiedPanelProps['queue']['playQueue'];
     playSong: UnifiedPanelProps['queue']['onPlaySong'];
+    /** 队列只读（外部播放器拥有队列时）。 */
+    queueReadOnly?: boolean;
     queueScrollRef: RefObject<HTMLDivElement | null>;
     shuffleQueue: UnifiedPanelProps['queue']['onShuffle'];
+    shuffleActive?: UnifiedPanelProps['queue']['shuffleActive'];
     removeQueueSong: UnifiedPanelProps['queue']['onRemoveSong'];
     moveQueueSongToEnd: UnifiedPanelProps['queue']['onMoveSongToEnd'];
     moveQueueSongToNext: UnifiedPanelProps['queue']['onMoveSongToNext'];
@@ -173,8 +176,10 @@ export const buildPlayerPanelModel = ({
     isCommandPaletteOpen,
     playQueue,
     playSong,
+    queueReadOnly,
     queueScrollRef,
     shuffleQueue,
+    shuffleActive,
     removeQueueSong,
     moveQueueSongToEnd,
     moveQueueSongToNext,
@@ -269,10 +274,12 @@ export const buildPlayerPanelModel = ({
             onPlaySong: playSong,
             queueScrollRef,
             onShuffle: shuffleQueue,
+            shuffleActive,
             onRemoveSong: removeQueueSong,
             onMoveSongToEnd: moveQueueSongToEnd,
             onMoveSongToNext: moveQueueSongToNext,
             onOpenLattice: navigateToLattice,
+            isReadOnly: queueReadOnly,
         },
         library: {
             onSaveCurrentQueueAsPlaylist: saveCurrentQueueAsLocalPlaylist,

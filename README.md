@@ -7,27 +7,23 @@
 </p>
 
 <div align="center">
-<a href="https://trendshift.io/repositories/71740?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-71740" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/71740" alt="chthollyphile%2Ffolia-major | Trendshift" width="250" height="55"/></a>
 
 # Folia
 
 Lyrics Reimagined // 辞曲新境
 
-[![GitHub release](https://img.shields.io/github/v/release/chthollyphile/folia-major?label=release)](https://github.com/chthollyphile/folia-major/releases)
-[![License](https://img.shields.io/github/license/chthollyphile/folia-major)](https://github.com/chthollyphile/folia-major/blob/main/LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/chthollyphile/folia-major?style=social)](https://github.com/chthollyphile/folia-major/stargazers)
+[![Release](https://img.shields.io/github/v/release/BURN1NGtree/folia-major?include_prereleases&label=release)](https://github.com/BURN1NGtree/folia-major/releases)
+[![License](https://img.shields.io/github/license/BURN1NGtree/folia-major)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/chthollyphile/folia-major)
-[![Discord](https://img.shields.io/discord/1541051241822687232?logo=discord&logoColor=white&label=Join%20our%20Discord)](https://discord.gg/dMDBTHxeKd)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-35-orange.svg?style=flat-square)](CONTRIBUTORS.md)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-[获取方式](https://github.com/chthollyphile/folia-major#%E8%8E%B7%E5%8F%96%E6%96%B9%E5%BC%8F)
+[下载](#快速下载)
 ·
-[Vercel 部署](https://vercel.com/new/clone?repository-url=https://github.com/chthollyphile/folia-major)
+[设计说明](docs/apple-music/INDEX.md)
 ·
-[使用指南](https://folia-site.cielaniska.top/guide/)
+[合规与免责](DISCLAIMER.md)
 ·
 [技术说明](docs/technical.md)
 
@@ -44,10 +40,9 @@ Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，
 ## 快速下载
 
 > [!TIP]
-> - **GitHub**：[Latest Release](https://github.com/chthollyphile/folia-major/releases/latest)，提供 Windows / macOS / Linux 全平台安装包。
-> - **网盘**：[夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) · [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia)（提取码 `flia`），适合国内网络，仅提供 Windows 与 Apple silicon 的正式版安装包。
->
-> 更多获取方式（Web 部署、Docker、AUR、Flatpak）见下方 [获取方式](#获取方式)。
+> - **本版下载**：[Releases · v0.7.20-apple.1](https://github.com/BURN1NGtree/folia-major/releases)，Windows 绿色免安装包（解压到**纯英文路径**后运行 `Folia.exe`）。
+> - **上游原版**：[chthollyphile/folia-major/releases](https://github.com/chthollyphile/folia-major/releases)（如需原版功能、或其他平台安装包，请到上游获取）。
+> - Apple Music 音源需要你自己的 Apple Music 订阅，并自行在浏览器登录；条款与风险见 [`DISCLAIMER.md`](DISCLAIMER.md)。
 
 ## 展示
 
@@ -137,11 +132,11 @@ https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
 
 如果你希望快速上线 Web 版本，请阅读 [Vercel 一键部署指南](https://folia-site.cielaniska.top/guide/deploy-vercel) 来创建项目
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/chthollyphile/folia-major) 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/BURN1NGtree/folia-major) 
 
 项目也支持一键部署到 Cloudflare，请参考 Vercel 的部署教程进行相应调整。
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chthollyphile/folia-major)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/BURN1NGtree/folia-major)
 
 Vercel 与 Cloudflare 上的 QQ 音乐不再需要额外部署一个常驻 API 实例：把 `VITE_QQ_API_BASE` 填成 `/api/qq`，再配一个 `QQ_SESSION_SECRET`（服务端密钥，**不加 `VITE_` 前缀**）即可。这种形态默认只支持微信扫码登录，且播放前必须先登录；Cloudflare 上可以再绑定一个 Durable Object，增加 QQ 扫码登录方式。完整步骤、平台差异和排错方法见 [QQ 音乐部署指南](docs/qq-music-deployment.md)。
 
@@ -155,7 +150,7 @@ Vercel 与 Cloudflare 上的 QQ 音乐不再需要额外部署一个常驻 API �
 
 ### 直接下载
 
-- **Windows / macOS / Linux**: 最新版本的安装包请前往 [Releases 页面](https://github.com/chthollyphile/folia-major/releases/latest) 下载。
+- **Windows / macOS / Linux**: 最新版本的安装包请前往 [Releases 页面](https://github.com/BURN1NGtree/folia-major/releases) 下载。
 - **Arch Linux**: 可通过 AUR 获取 [folia-major-bin](https://aur.archlinux.org/packages/folia-major-bin)。
 - **Flatpak**: 社区提供的第三方 flatpak，详情见 [Flatpark](https://flatpark.org/apps/top.izuna.foliamajor/)。
 
@@ -191,7 +186,7 @@ Folia 提供了可选的官方同步服务端 `sync-server`，用于在多个设
 支持以下部署方式：
 
 - **Cloudflare Workers / D1**：免服务器运维的 Serverless 部署，推荐使用。
-  [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chthollyphile/folia-major/tree/main/sync-server)
+  [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/BURN1NGtree/folia-major/tree/main/sync-server)
 - **Docker**：镜像与 Compose 入口见 [Docker 部署目录](deploy/docker/README.md)。
 - **Node.js 自托管**：使用 SQLite，适合本地或不方便使用 Docker 的环境。
 
@@ -205,9 +200,9 @@ Folia 会读取音频文件元数据、同目录歌词和封面，并可通过�
 
 ## Community
 
-加入discord社群，共同交流，获得帮助
-
-[![Discord](https://img.shields.io/discord/1541051241822687232?logo=discord&logoColor=white&label=Join%20our%20Discord)](https://discord.gg/dMDBTHxeKd)
+> 与本版本（Apple Music 音源）有关的问题，请到**本仓库**提 Issue：<https://github.com/BURN1NGtree/folia-major/issues>。
+>
+> **请勿到上游仓库或其社区询问本分支的问题**，上游作者不负责本版本，也未曾参与它的开发。
 
 ## 贡献者
 

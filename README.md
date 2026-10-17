@@ -1,238 +1,176 @@
-> **非官方衍生版（unofficial downstream fork）**
-> 本仓库是 [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) 的修改版，新增「Apple Music 音源」支持。**与上游作者无隶属关系，也未获 Apple 或上游的任何背书**；Apple Music 相关功能由本项目独立实现，风险与支持均由本项目承担。
-> 上游版权归原作者，本项目按其 **AGPL-3.0** 许可证分发（`LICENSE` 原样保留）。新增内容与设计说明见 [`docs/apple-music/`](docs/apple-music/)，合规与免责见 [`NOTICE`](NOTICE) 与 [`DISCLAIMER.md`](DISCLAIMER.md)。
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/b5d0e863-48be-497b-b0e9-4bd8d8ce9bf0" alt="Folia" width="100%" />
-</p>
-
-<div align="center">
-
-# Folia
-
-Lyrics Reimagined // 辞曲新境
+# Folia Apple Music · 非官方 Windows 衍生版
 
 [![Release](https://img.shields.io/github/v/release/BURN1NGtree/folia-major?include_prereleases&label=release)](https://github.com/BURN1NGtree/folia-major/releases)
 [![License](https://img.shields.io/github/license/BURN1NGtree/folia-major)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-35-orange.svg?style=flat-square)](CONTRIBUTORS.md)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)](https://github.com/BURN1NGtree/folia-major/releases)
 
-[下载](#快速下载)
-·
-[设计说明](docs/apple-music/INDEX.md)
-·
-[合规与免责](DISCLAIMER.md)
-·
-[技术说明](docs/technical.md)
+> **一句话**：给 Windows 上听 Apple Music 的人，一个能放 Apple Music 的 Folia。
+>
+> 本仓库是 [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) 的**非官方修改版**。在原版已有音源之外，新增了一路 **Apple Music**。
+>
+> **与上游作者无隶属关系，未获 Apple 或上游的任何背书。** Apple Music 相关功能由本仓库独立实现，问题与风险也由本仓库承担，请勿找上游。
 
-</div>
+## 这个版本适合谁
 
-## 项目简介
+| 适合 | 不适合 |
+| --- | --- |
+| Windows 10 / 11 用户 | macOS / Linux 用户（本版只在 Windows 实测过） |
+| 有 Apple Music 订阅、想在 Folia 里听 | 没有订阅、想免费听的人（本版不提供、也无法绕过订阅） |
+| 想要沉浸式歌词 + Apple Music | 想要 Apple 官方客户端专属能力（离线下载、空间音频等） |
+| 愿意自己登录一次网页版 | 不愿意让本机保存登录态的人 |
 
-Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，支持网易云、酷狗、Navidrome 和本地音乐库，通过智能歌词匹配，AI生成配色主题，以及多种全屏歌词动画为用户提供独特的听歌体验。
+如果你要的是原版的全平台安装包，请到上游：[chthollyphile/folia-major/releases](https://github.com/chthollyphile/folia-major/releases)。
 
-提供基于Electron的 windows/ macOS/ Linux 桌面端版本与基于 Node.js 的 Web 版本，支持多平台部署。
+## 和上游比，改了哪些地方
 
-如果希望能够在移动设备上使用，或在浏览器上体验，可以选择[一键部署到 Vercel](https://folia-site.cielaniska.top/guide/deploy-vercel) 的 Web 版本，或自行部署到其他支持 Node.js 的平台。
+**以下改动全部来自本仓库，上游没有这些内容。**
 
-## 快速下载
+| 类别 | 变化 | 你能感受到的地方 |
+| --- | --- | --- |
+| **新音源** | 接入 Apple Music | 来源列表多出 Apple；可搜索、看推荐、读自己的歌单与专辑 |
+| **播放方式** | 由本程序启动一个**专用浏览器**访问 Apple 网页版，由它出声 | 不必安装 Apple 客户端，但要自己登录一次 |
+| **窗口行为** | 后台窗口放在**屏幕外**，播放/登录时才升为可见窗口 | 听歌时不会抢前台、不占任务栏 |
+| **登录引导** | 中文引导卡；不代填、不读取账号密码 | 点登录才会弹出窗口，由你自己完成登录 |
+| **数据读取** | 通过浏览器调试协议读曲库 / 搜索 / 封面 / 歌词 | 歌单、专辑、歌词与网页版一致 |
+| **专辑信息** | 专辑卡片补上歌手名 | 不再显示「未知歌手」 |
+| **歌词** | 切到无歌词曲目时清空上一首歌词 | 纯音乐不再串上一首的字 |
+| **文案** | Apple 相关提示中文化 | 不会再弹「使用网易云 APP 扫码」这类错框 |
+| **稳定性** | 队列快照一致性校验、断线重连、播控等待时间自适应 | 几百首的大歌单切换时不容易卡住或误判 |
 
-> [!TIP]
-> - **本版下载**：[Releases · v0.7.20-apple.1](https://github.com/BURN1NGtree/folia-major/releases)，Windows 绿色免安装包（解压到**纯英文路径**后运行 `Folia.exe`）。
-> - **上游原版**：[chthollyphile/folia-major/releases](https://github.com/chthollyphile/folia-major/releases)（如需原版功能、或其他平台安装包，请到上游获取）。
-> - Apple Music 音源需要你自己的 Apple Music 订阅，并自行在浏览器登录；条款与风险见 [`DISCLAIMER.md`](DISCLAIMER.md)。
+详细原理、边界与踩坑记录见 [`docs/apple-music/`](docs/apple-music/)（11 篇，含改动原理、工具清单、合规说明、发布计划）。
 
-## 展示
+## 下载与安装
 
-![visualizer](./img/visualizer.png)
+**最新版**：<https://github.com/BURN1NGtree/folia-major/releases>
 
-### 演示视频
+1. 下载 `Folia-prod.rar`；
+2. 解压到**纯英文路径**（例如 `D:\Folia`）。**路径含中文或空格可能导致启动失败**；
+3. 双击 `Folia.exe`；
+4. 按启动向导完成基础设置。
 
-https://github.com/user-attachments/assets/af806cf1-f67f-4b88-b2e7-57db507e9e81
+绿色免安装、不写注册表；卸载就是删除程序目录（用户数据另见下文「数据存在哪」）。
 
-https://github.com/user-attachments/assets/fd27f4f0-64b9-4c57-8c3b-10df767f934b
+## 第一次用 Apple Music
 
-https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
+1. 打开 Folia → 设置 → **在线音乐平台**；
+2. 选择 **Apple Music** → 点「打开登录窗口」；
+3. 在弹出的浏览器窗口里用**你自己的 Apple ID** 登录（密码与双重验证都在那个窗口完成，Folia 不接触）；
+4. 回到 Folia 点「重新检测」，状态变成已登录；
+5. 在来源里选 Apple，即可搜索与播放。
 
-### 部分主题预览
+<p align="center">
+  <img src="docs/apple-music/img/login-guide.png" alt="Apple Music 登录引导" width="68%" />
+</p>
 
-<table>
-  <tr>
-    <td width="50%">
-      <img src="./img/preview-fume.png" alt="Fume 主题预览" />
-    </td>
-    <td width="50%">
-      <img src="./img/preview-lumi.png" alt="Lumi 主题预览" />
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><strong>浮名</strong></td>
-    <td align="center"><strong>流光</strong></td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="./img/preview-cad.png" alt="Cad 主题预览" />
-    </td>
-    <td width="50%">
-      <img src="./img/preview-pat.png" alt="Pat 主题预览" />
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><strong>心象</strong></td>
-    <td align="center"><strong>云阶</strong></td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="./img/preview-cappella.jpg" alt="群唱 主题预览" />
-    </td>
-    <td width="50%">
-      <img src="./img/preview-tilt.png" alt="Tilt 主题预览" />
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><strong>群唱</strong></td>
-    <td align="center"><strong>倾诉</strong></td>
-  </tr>
-    <tr>
-    <td width="50%">
-      <img src="./img/preview-diorama.png" alt="镜台 主题预览" />
-    </td>
-    <td width="50%">
-      <img src="./img/preview-pendolo.png" alt="时计 主题预览" />
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><strong>镜台</strong></td>
-    <td align="center"><strong>时计</strong></td>
-  </tr>
-</table>
+登录态保存在本机的专用浏览器 profile 中，**下次启动无需重新登录**（除非你清理了该目录）。
 
-不同的歌词动画具有不同的排版氛围和可调参数，让全屏歌词拥有如同文字PV般的丰富视觉效果，同时又能兼顾响应式布局，自动适配不同窗口尺寸。
+## 界面
 
-## 核心能力
+专辑页会显示歌手名（上游原版此处为空）：
+
+<p align="center">
+  <img src="docs/apple-music/img/albums-artist.png" alt="专辑歌手名" width="78%" />
+</p>
+
+## 保留的上游能力
+
+本版**没有删减**上游任何原有能力，只是增加了 Apple Music：
 
 | 模块 | 说明 |
 | --- | --- |
-| 在线搜索与播放 | 搜索歌曲、歌手或专辑后即可播放，并自动加载相关封面与歌词。 |
-| 本地音乐支持 | 可导入本地音频文件，在本地安全保存索引信息，不上传文件内容。详细用法见 [本地音乐库管理](docs/local-library-management.md)。 |
-| 智能歌词匹配 | 本地歌曲可自动匹配在线歌词与封面，也支持手动修正匹配结果。 |
-| 本地歌词文件识别 | 自动加载同目录同名 `.lrc`、`.vtt`、`.ttml`、`.qrc`、`.yrc`、`.krc` 歌词文件，或歌词文件内嵌 LRC 歌词。适配 LDDC 生成的增强型逐字歌词格式。 |
-| Now Playing 接入 | 支持通过本机 [Now Playing](https://github.com/Widdit/now-playing-service/) 服务接入外部播放器的歌曲、时间轴与歌词信息，并驱动 Folia 的舞台视图与全屏歌词渲染。 |
-| AI 主题生成 | 基于歌曲情绪与歌词内容生成沉浸式背景与视觉参数。 |
-| 多端体验 | 提供 Web 部署方式，同时支持桌面端打包分发。 |
-| 模组系统（实验性） | 桌面版可通过 Folium 模组添加歌词动画、背景、播放页图层、命令等，并从 [模组市场](https://folium-compound.cielaniska.top) 安装官方认证的模组。详见 [模组系统](#模组系统folium-v1x)。 |
+| 在线音源 | 网易云、QQ、酷狗、酷我、波点 |
+| 本地音乐 | 导入本地音频、同目录歌词（`.lrc` / `.vtt` / `.ttml` / `.qrc` / `.yrc` / `.krc`）与内嵌歌词 |
+| 沉浸式歌词 | 全屏歌词、多种动画与可调参数、AI 生成配色 |
+| Now Playing | 通过本机 Now Playing 服务接入外部播放器的时间轴与歌词 |
+| 模组系统 | Folium v1.x（实验性，桌面版，默认关闭） |
+| Web / 自托管 | Web 版、Docker、Sync Server 等（见上游文档） |
 
-## 获取方式
+这些能力的实现、文档与设计归上游作者与贡献者所有，使用说明请直接看上游仓库与[上游文档](https://folia-site.cielaniska.top/guide/)。
 
-桌面版内置前后端运行环境，适合希望即装即用的用户。
+## 系统要求
 
-### 一键部署
+- **Windows 10 / 11（x64）**，本版仅此平台实测；
+- 有效的 **Apple Music 订阅**（地区、家庭共享、学生订阅等差异会影响行为）；
+- 能正常访问 `music.apple.com`（网络受限时登录会失败）；
+- 无需预装 Apple Music 客户端、iTunes 或任何虚拟机。
 
-如果你希望快速上线 Web 版本，请阅读 [Vercel 一键部署指南](https://folia-site.cielaniska.top/guide/deploy-vercel) 来创建项目
+## 与上游、与 Apple 的关系
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/BURN1NGtree/folia-major) 
+- **与上游**：本仓库是 fork，完整保留上游代码与其 `LICENSE`（AGPL-3.0，逐字节未改）。**上游作者未参与本版本的开发，也不为其负责**；请勿到上游仓库或社区报本版的问题。
+- **与 Apple**：无任何关系。本版不含 Apple 的代码、不代理 Apple 服务、不提供账号或订阅、不破解 DRM、不下载或再分发音频。播放走的是 Apple 自己的网页播放器。
+- **风险提示**：自动化操作第三方网页属于 Apple 条款的灰色地带，账号存在被限制的可能，**风险由使用者自行承担**。详见 [`DISCLAIMER.md`](DISCLAIMER.md)。
 
-项目也支持一键部署到 Cloudflare，请参考 Vercel 的部署教程进行相应调整。
+## 许可与源码（AGPL-3.0）
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/BURN1NGtree/folia-major)
+- 本版按 **AGPL-3.0** 分发，`LICENSE` 原样保留；
+- 你可以自由使用、修改、再分发，但**分发时必须同样以 AGPL-3.0 提供完整对应源码**并保留版权声明；
+- 对应源码：本仓库 `v0.7.20-apple.1` 标签，或 Release 附件中的 `folia-major-src.tar.gz`；
+- 相对上游的完整改动：Release 附件 `folia-major-changes.patch`（89 文件，可直接审计）；
+- 上游版权归原作者与贡献者；本版新增部分归本仓库维护者。详见 [`NOTICE`](NOTICE)。
 
-Vercel 与 Cloudflare 上的 QQ 音乐不再需要额外部署一个常驻 API 实例：把 `VITE_QQ_API_BASE` 填成 `/api/qq`，再配一个 `QQ_SESSION_SECRET`（服务端密钥，**不加 `VITE_` 前缀**）即可。这种形态默认只支持微信扫码登录，且播放前必须先登录；Cloudflare 上可以再绑定一个 Durable Object，增加 QQ 扫码登录方式。完整步骤、平台差异和排错方法见 [QQ 音乐部署指南](docs/qq-music-deployment.md)。
+## 数据存在哪
 
-自托管用户可以使用 [Docker Compose 全栈部署](deploy/docker/README.md)。本地音乐目录访问依赖可信 HTTPS 安全上下文，部署文档包含 NAS 反向代理和证书要求。
+| 内容 | 位置 | 说明 |
+| --- | --- | --- |
+| 应用数据（设置、缓存、曲库索引） | `%APPDATA%\Folia` | 删除后回到初始状态 |
+| Apple 登录态（专用浏览器） | `%LOCALAPPDATA%\FoliaAMProfile` | **等同于账号登录态**，请按敏感数据对待；删除后需重新登录 |
+| 程序本体 | 你解压的目录 | 绿色版，删目录即卸载 |
 
-关于移动端：
+## 常见问题
 
-目前推荐移动端用户部署 Web 版本/自托管版本之后，通过chrome for android / iOS Safari 创建 PWA应用（也就是将网页应用添加到桌面，Folia web版本支持安装为PWA应用）来使用。
+**点播放后进度在走却没声音？**
+先确认系统音量与输出设备，再确认 Apple 已登录。本版后台浏览器窗口在屏幕外属正常现象，播放时应有声音。仍无声请提 Issue 并附日志。
 
-有一定技术的用户可以使用 capacitor 将本项目的web版本打包成为可安装的安卓apk，具体方法可参考示范仓库：[chthollyphile/folia-sonnet](https://github.com/chthollyphile/folia-sonnet)
+**点登录没反应，或窗口跑到屏幕外？**
+稍等 1–3 秒——本版需要切换浏览器实例。若一直无窗口，检查杀毒软件是否拦截了子进程。
 
-### 直接下载
+**启动后直接退出、没有任何提示？**
+多半是路径含中文/空格，或已有实例在运行。换到 `D:\Folia` 这类纯英文路径，并确认任务管理器里没有残留 `Folia.exe`。
 
-- **Windows / macOS / Linux**: 最新版本的安装包请前往 [Releases 页面](https://github.com/BURN1NGtree/folia-major/releases) 下载。
-- **Arch Linux**: 可通过 AUR 获取 [folia-major-bin](https://aur.archlinux.org/packages/folia-major-bin)。
-- **Flatpak**: 社区提供的第三方 flatpak，详情见 [Flatpark](https://flatpark.org/apps/top.izuna.foliamajor/)。
+**Apple 页面提示不可用 / 登录失败？**
+先确认网络能访问 `music.apple.com`；部分地区需要相应网络环境。这类问题不属于本程序的缺陷。
 
-> [!IMPORTANT]
-> 如果国内网络从 GitHub Releases 下载较慢，可以使用 [夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) 或 [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia) 下载。网盘链接仅提供 Windows 与 Apple silicon 的正式版安装包.
+**会不会导致 Apple 账号被封？**
+存在这种可能（目前未收到相关反馈）。这是使用本版的主要风险，请自行判断是否接受，见 `DISCLAIMER.md`。
 
-Linux 包、Wayland / Hyprland 遥控窗和桌面端细节见 [技术与开发说明](docs/technical.md)。
+**能出 macOS / Linux 版吗？**
+源码可构建，但本仓库只在 Windows 验证过；其他平台需自行处理浏览器路径与窗口行为差异，不保证可用。
 
-## 文档与开发
+## 从源码构建（Windows）
 
-更完整的使用说明请访问 [Folia Guide](https://folia-site.cielaniska.top/guide/)。
+```bash
+git clone https://github.com/BURN1NGtree/folia-major.git
+cd folia-major
+git checkout release/fork-apple
+npm ci
 
-部署、环境变量、本地开发、Stage API、常用脚本和技术栈见 [技术与开发说明](docs/technical.md)。
+# 关键：必须带 ELECTRON=true，否则产物引用绝对路径，打包后白屏
+ELECTRON=true npx vite build
 
-## 模组系统（Folium v1.x）
+# 离线打包（复用本机 Electron；跳过签名与 exe 改写）
+npx electron-builder --dir --win \
+  -c.electronDist=node_modules/electron/dist \
+  -c.win.signAndEditExecutable=false
+```
 
-> [!NOTE]
-> 模组系统是实验性功能，仅桌面版可用，默认关闭，需要在「设置 → 实验室 → 模组系统」中开启。
+产物在 `release/win-unpacked`。两个常见坑：
 
-Folium 是 Folia 的模组平台。模组可以添加新的歌词动画模式和背景类型、在播放页上叠加内容、给进度条加按钮和标记、注册命令与设置分区、在歌词显示前改写歌词，也可以通过 Node 入口调用 ffmpeg 等本地能力。模组以可信代码运行，每个模组在启用前都要在原生窗口中确认，文件变化后需要重新确认。
-
-- **模组市场**：[folium-compound.cielaniska.top](https://folium-compound.cielaniska.top) 提供官方模组和经过审查的社区模组，下载 zip 后拖进模组面板即可安装。
-- **官方认证**：市场里的模组都带有 Folium 签名，安装后显示「官方认证」；只通过安全审查的先行测试模组显示「先行测试」；没有签名的第三方模组显示「未验证」，同样可以使用。
-- **开发与贡献**：[模组开发与贡献指南](docs/folium/contributing.md)，从写第一个模组、本地调试，到提交到模组市场、审查与签名、发布更新。
-- **API 参考**：[Folium API 参考](docs/folium/api.md)，由契约文件生成的完整接口文档，按注册表、上下文、事件、服务等分类查询。
-- **平台规范**：[Folium 规范](mods/README.md)，包括清单字段、权限、注册表语义、事件、安全模型与版本策略。
-- **示范模组**：仓库的 [`mods/`](mods/) 目录，覆盖歌词动画、调参、进度条、播放页图层与透明视频导出。
-
-## Sync Server
-
-Folia 提供了可选的官方同步服务端 `sync-server`，用于在多个设备之间同步外观设置与 AI 主题库。服务端由用户自行托管，适合希望跨设备同步配色主题的用户。
-
-支持以下部署方式：
-
-- **Cloudflare Workers / D1**：免服务器运维的 Serverless 部署，推荐使用。
-  [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/BURN1NGtree/folia-major/tree/main/sync-server)
-- **Docker**：镜像与 Compose 入口见 [Docker 部署目录](deploy/docker/README.md)。
-- **Node.js 自托管**：使用 SQLite，适合本地或不方便使用 Docker 的环境。
-
-详细的环境变量、Token 配置与部署步骤请参阅 [Sync-Server 部署指南](https://folia-site.cielaniska.top/guide/deploy-sync)。部署完成后，在 Folia 的“存储设置”中填写服务端地址和 `SYNC_TOKEN` 即可启用同步。
-
-## 本地音乐与匹配说明
-
-Folia 会读取音频文件元数据、同目录歌词和封面，并可通过网易云、QQ 音乐或酷狗音乐补全歌曲信息。自动匹配按网易云、QQ、酷狗依次回退；匹配不准确时，可以手动选择候选、恢复首次导入的本地信息，或进一步合并、拆分艺术家与专辑实体。
-
-完整的导入、重扫、匹配、实体编辑、歌单、缓存和故障排查说明见 [本地音乐库管理](docs/local-library-management.md)。
-
-## Community
-
-> 与本版本（Apple Music 音源）有关的问题，请到**本仓库**提 Issue：<https://github.com/BURN1NGtree/folia-major/issues>。
->
-> **请勿到上游仓库或其社区询问本分支的问题**，上游作者不负责本版本，也未曾参与它的开发。
-
-## 贡献者
-
-感谢所有为本项目进行 Issue 提交、Bug 报告、想法建议、测试与代码编写的贡献者，均依据 all-contributors 规范进行统计
-
-由于列表过长，贡献记录请见 [贡献者名单](CONTRIBUTORS.md)。
-
-## 法律与免责声明
-
-本项目在 AI 的广泛协助下开发，因此仍可能存在细微或不易察觉的问题。若给你带来不便，敬请理解。
-
-本项目主要用于展示播放动效、界面设计与相关工程实现。应用中涉及的在线音乐流媒体、歌词、专辑封面及其他内容，其版权均归对应权利人所有。
-
-本仓库及其源代码仅供个人学习、技术交流与非营利测试使用。请勿将其用于商业盈利用途。若因对在线资源的传播、加工或再分发而引发版权纠纷或其他责任，均由使用者自行承担，项目开发者不承担相关责任。
-
-请始终尊重数字版权，并在条件允许时通过官方平台支持正版音乐。
+- `beforePack` 需要 `build/ffmpeg/win-x64` 下的 ffmpeg 资产，缺失会报 `fetch failed`（先准备 `node_modules/electron/dist` 与 ffmpeg 缓存）；
+- 不要用 `asar extract-file`——它会把文件写到当前工作目录，可能覆盖源码。
 
 ## 致谢
 
-特别感谢以下项目和资源：
+- 上游项目：[chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) 及其全部贡献者（贡献者名单见上游 `CONTRIBUTORS.md`）；
+- 上游依赖与数据来源（含 LDDC、NeteaseCloudMusicApiEnhanced、KuGouMusicApi、qq-music-api、shaders、pretext、AMLL TTML 歌词库等）归各自作者所有；
+- 本仓库只做了 Apple Music 接入与 Windows 打包这一层工作，其余能力均为上游成果。
 
-- [chenmozhijin/LDDC](https://github.com/chenmozhijin/LDDC)
-- [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)
-- [chenglou/pretext](https://github.com/chenglou/pretext)
-- [MakcRe/KuGouMusicApi](https://github.com/MakcRe/KuGouMusicApi)
-- [paper-design/shaders](https://github.com/paper-design/shaders)
-- [yakult-green-tea/qq-music-api](https://github.com/yakult-green-tea/qq-music-api)
+## 反馈
 
-本项目接入了 [Apple Music-like Lyrics TTML 逐词歌词库](https://github.com/amll-dev/amll-ttml-db) 以提供高质量的歌词文件，感谢此歌词库的作者和贡献者们。
+- 与本版（Apple Music 音源、Windows 打包）相关的问题：**请在本仓库提 Issue**
+  <https://github.com/BURN1NGtree/folia-major/issues>
+- 提 Issue 时请附：版本标签、Windows 版本、复现步骤、日志（启动加 `--enable-logging`）；
+- **请勿在上游仓库或其社区询问本分支的问题**——上游作者不负责本版，也未曾参与它的开发。
 
 ## 许可证
 
-本项目基于 `AGPL-3.0` 许可证开源。
+本项目基于 [`AGPL-3.0`](LICENSE) 开源。

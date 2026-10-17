@@ -1,3 +1,7 @@
+> **非官方衍生版（unofficial downstream fork）**
+> 本仓库是 [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) 的修改版，新增「Apple Music 音源」支持。**与上游作者无隶属关系，也未获 Apple 或上游的任何背书**；Apple Music 相关功能由本项目独立实现，风险与支持均由本项目承担。
+> 上游版权归原作者，本项目按其 **AGPL-3.0** 许可证分发（`LICENSE` 原样保留）。新增内容与设计说明见 [`docs/apple-music/`](docs/apple-music/)，合规与免责见 [`NOTICE`](NOTICE) 与 [`DISCLAIMER.md`](DISCLAIMER.md)。
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/b5d0e863-48be-497b-b0e9-4bd8d8ce9bf0" alt="Folia" width="100%" />
 </p>
